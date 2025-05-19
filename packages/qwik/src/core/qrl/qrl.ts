@@ -1,6 +1,6 @@
 import { EMPTY_ARRAY } from '../util/flyweight';
 import type { QRL } from './qrl.public';
-import { assertQrl, createQRL, emitEvent, getSymbolHash, QRLInternal } from './qrl-class';
+import { assertQrl, createQRL, isSyncQrl, type QRLInternal } from './qrl-class';
 import { isFunction, isString } from '../util/types';
 import {
   qError,
@@ -10,11 +10,11 @@ import {
 } from '../error/error';
 import { qRuntimeQrl, qSerialize } from '../util/qdev';
 import { getPlatform } from '../platform/platform';
-import type { QwikElement } from '../render/dom/virtual-element';
-import { assertDefined, assertTrue } from '../error/assert';
-import { assertElement } from '../util/element';
-import type { MustGetObjID } from '../container/container';
+import { assertDefined, assertTrue, assertElement } from '../error/assert';
+import type { ContainerState, MustGetObjID } from '../container/container';
 import type { QContext } from '../state/context';
+import { mapJoin } from '../container/pause';
+import { throwErrorAndStop } from '../util/log';
 
 // https://regexr.com/68v72
 const EXTRACT_IMPORT_PATH = /\(\s*(['"])([^\1]+)\1\s*\)/;
@@ -25,8 +25,9 @@ const EXTRACT_SELF_IMPORT = /Promise\s*\.\s*resolve/;
 // https://regexr.com/6a83h
 const EXTRACT_FILE_NAME = /[\\/(]([\w\d.\-_]+\.(js|ts)x?):/;
 
-const announcedQRL = /*@__PURE__*/ new Set<string>();
+const announcedQRL = /*#__PURE__*/ new Set<string>();
 
+/** @public */
 export interface QRLDev {
   file: string;
   lo: number;
@@ -42,12 +43,11 @@ export interface QRLDev {
  * This function should be used by the Qwik Optimizer only. The function should not be directly
  * referred to in the source code of the application.
  *
- * @see `QRL`, `$(...)`
- *
  * @param chunkOrFn - Chunk name (or function which is stringified to extract chunk name)
  * @param symbol - Symbol to lazy load
- * @param lexicalScopeCapture - a set of lexically scoped variables to capture.
- * @alpha
+ * @param lexicalScopeCapture - A set of lexically scoped variables to capture.
+ * @public
+ * @see `QRL`, `$(...)`
  */
 // </docs>
 export const qrl = <T = any>(
@@ -86,21 +86,16 @@ export const qrl = <T = any>(
     throw qError(QError_unknownTypeArgument, chunkOrFn);
   }
 
-  if (announcedQRL.has(symbol)) {
+  if (!announcedQRL.has(symbol)) {
     // Emit event
     announcedQRL.add(symbol);
-    emitEvent('qprefetch', {
-      symbols: [getSymbolHash(symbol)],
-    });
   }
 
   // Unwrap subscribers
   return createQRL<T>(chunk, symbol, null, symbolFn, null, lexicalScopeCapture, null);
 };
 
-/**
- * @internal
- */
+/** @internal */
 export const inlinedQrl = <T>(
   symbol: T,
   symbolName: string,
@@ -110,9 +105,26 @@ export const inlinedQrl = <T>(
   return createQRL<T>(null, symbolName, symbol, null, null, lexicalScopeCapture, null);
 };
 
-/**
- * @internal
- */
+/** @internal */
+export const _noopQrl = <T>(
+  symbolName: string,
+  lexicalScopeCapture: any[] = EMPTY_ARRAY
+): QRL<T> => {
+  return createQRL<T>(null, symbolName, null, null, null, lexicalScopeCapture, null);
+};
+
+/** @internal */
+export const _noopQrlDEV = <T>(
+  symbolName: string,
+  opts: QRLDev,
+  lexicalScopeCapture: any[] = EMPTY_ARRAY
+): QRL<T> => {
+  const newQrl = _noopQrl(symbolName, lexicalScopeCapture) as QRLInternal<T>;
+  newQrl.dev = opts;
+  return newQrl;
+};
+
+/** @internal */
 export const qrlDEV = <T = any>(
   chunkOrFn: string | (() => Promise<any>),
   symbol: string,
@@ -120,13 +132,11 @@ export const qrlDEV = <T = any>(
   lexicalScopeCapture: any[] = EMPTY_ARRAY
 ): QRL<T> => {
   const newQrl = qrl(chunkOrFn, symbol, lexicalScopeCapture, 1) as QRLInternal<T>;
-  newQrl.$dev$ = opts;
+  newQrl.dev = opts;
   return newQrl;
 };
 
-/**
- * @internal
- */
+/** @internal */
 export const inlinedQrlDEV = <T = any>(
   symbol: T,
   symbolName: string,
@@ -134,14 +144,14 @@ export const inlinedQrlDEV = <T = any>(
   lexicalScopeCapture: any[] = EMPTY_ARRAY
 ): QRL<T> => {
   const qrl = inlinedQrl(symbol, symbolName, lexicalScopeCapture) as QRLInternal<T>;
-  qrl.$dev$ = opts;
+  qrl.dev = opts;
   return qrl;
 };
 
 export interface QRLSerializeOptions {
-  $element$?: QwikElement;
   $getObjId$?: MustGetObjID;
-  $addRefMap$?: (obj: any) => number;
+  $addRefMap$?: (obj: any) => string;
+  $containerState$?: ContainerState;
 }
 
 export const serializeQRL = (qrl: QRLInternal, opts: QRLSerializeOptions = {}) => {
@@ -153,55 +163,72 @@ export const serializeQRL = (qrl: QRLInternal, opts: QRLSerializeOptions = {}) =
   const platform = getPlatform();
 
   if (platform) {
-    const result = platform.chunkForSymbol(refSymbol);
+    const result = platform.chunkForSymbol(refSymbol, chunk, qrl.dev?.file);
     if (result) {
       chunk = result[1];
       if (!qrl.$refSymbol$) {
         symbol = result[0];
       }
+    } else {
+      console.error('serializeQRL: Cannot resolve symbol', symbol, 'in', chunk, qrl.dev?.file);
     }
   }
 
-  if (qRuntimeQrl && !chunk) {
+  if (qRuntimeQrl && chunk == null) {
     chunk = '/runtimeQRL';
     symbol = '_';
   }
-  if (!chunk) {
-    throw qError(QError_qrlMissingChunk, qrl);
+  if (chunk == null) {
+    throw qError(QError_qrlMissingChunk, qrl.$symbol$);
   }
   if (chunk.startsWith('./')) {
     chunk = chunk.slice(2);
   }
-  const parts: string[] = [chunk, '#', symbol];
+  if (isSyncQrl(qrl)) {
+    if (opts.$containerState$) {
+      const fn = qrl.resolved as Function;
+      const containerState = opts.$containerState$;
+      const fnStrKey = ((fn as any).serialized as string) || fn.toString();
+      let id = containerState.$inlineFns$.get(fnStrKey);
+      if (id === undefined) {
+        id = containerState.$inlineFns$.size;
+        containerState.$inlineFns$.set(fnStrKey, id);
+      }
+      symbol = String(id);
+    } else {
+      throwErrorAndStop('Sync QRL without containerState');
+    }
+  }
+  let output = `${chunk}#${symbol}`;
   const capture = qrl.$capture$;
   const captureRef = qrl.$captureRef$;
   if (captureRef && captureRef.length) {
     if (opts.$getObjId$) {
-      const capture = captureRef.map(opts.$getObjId$);
-      parts.push(`[${capture.join(' ')}]`);
+      output += `[${mapJoin(captureRef, opts.$getObjId$, ' ')}]`;
     } else if (opts.$addRefMap$) {
-      const capture = captureRef.map(opts.$addRefMap$);
-      parts.push(`[${capture.join(' ')}]`);
+      output += `[${mapJoin(captureRef, opts.$addRefMap$, ' ')}]`;
     }
   } else if (capture && capture.length > 0) {
-    parts.push(`[${capture.join(' ')}]`);
+    output += `[${capture.join(' ')}]`;
   }
-  return parts.join('');
+  return output;
 };
 
-export const serializeQRLs = (existingQRLs: QRLInternal<any>[], elCtx: QContext): string => {
+export const serializeQRLs = (
+  existingQRLs: QRLInternal<any>[],
+  containerState: ContainerState,
+  elCtx: QContext
+): string => {
   assertElement(elCtx.$element$);
   const opts: QRLSerializeOptions = {
-    $element$: elCtx.$element$,
+    $containerState$: containerState,
     $addRefMap$: (obj) => addToArray(elCtx.$refMap$, obj),
   };
-  return existingQRLs.map((qrl) => serializeQRL(qrl, opts)).join('\n');
+  return mapJoin(existingQRLs, (qrl) => serializeQRL(qrl, opts), '\n');
 };
 
-/**
- * `./chunk#symbol[captures]
- */
-export const parseQRL = (qrl: string, containerEl?: Element): QRLInternal => {
+/** `./chunk#symbol[captures] */
+export const parseQRL = <T = any>(qrl: string, containerEl?: Element): QRLInternal<T> => {
   const endIdx = qrl.length;
   const hashIdx = indexOf(qrl, 0, '#');
   const captureIdx = indexOf(qrl, hashIdx, '[');
@@ -211,7 +238,6 @@ export const parseQRL = (qrl: string, containerEl?: Element): QRLInternal => {
 
   const symbolStartIdx = hashIdx == endIdx ? hashIdx : hashIdx + 1;
   const symbolEndIdx = captureIdx;
-  // TODO
   const symbol =
     symbolStartIdx == symbolEndIdx ? 'default' : qrl.substring(symbolStartIdx, symbolEndIdx);
 
@@ -226,7 +252,7 @@ export const parseQRL = (qrl: string, containerEl?: Element): QRLInternal => {
   if (containerEl) {
     iQrl.$setContainer$(containerEl);
   }
-  return iQrl;
+  return iQrl as QRLInternal<T>;
 };
 
 const indexOf = (text: string, startIdx: number, char: string) => {
@@ -239,9 +265,9 @@ const addToArray = (array: any[], obj: any) => {
   const index = array.indexOf(obj);
   if (index === -1) {
     array.push(obj);
-    return array.length - 1;
+    return String(array.length - 1);
   }
-  return index;
+  return String(index);
 };
 
 export const inflateQrl = (qrl: QRLInternal, elCtx: QContext) => {
@@ -252,4 +278,13 @@ export const inflateQrl = (qrl: QRLInternal, elCtx: QContext) => {
     assertTrue(elCtx.$refMap$.length > int, 'out of bounds inflate access', idx);
     return obj;
   }));
+};
+
+/** @internal */
+export const _regSymbol = (symbol: any, hash: string) => {
+  if (typeof (globalThis as any).__qwik_reg_symbols === 'undefined') {
+    (globalThis as any).__qwik_reg_symbols = new Map<string, any>();
+  }
+  (globalThis as any).__qwik_reg_symbols.set(hash, symbol);
+  return symbol;
 };

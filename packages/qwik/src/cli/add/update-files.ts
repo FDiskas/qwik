@@ -1,58 +1,92 @@
-import type { FsUpdates, UpdateAppOptions } from '../types';
 import fs from 'node:fs';
-import { join } from 'node:path';
+import { extname, join } from 'node:path';
+import type { FsUpdates, UpdateAppOptions } from '../types';
 import { getPackageManager } from '../utils/utils';
 
 export async function mergeIntegrationDir(
   fileUpdates: FsUpdates,
   opts: UpdateAppOptions,
   srcDir: string,
-  destDir: string
+  destDir: string,
+  alwaysInRoot?: string[]
 ) {
   const items = await fs.promises.readdir(srcDir);
   await Promise.all(
     items.map(async (itemName) => {
       const destName = itemName === 'gitignore' ? '.gitignore' : itemName;
+      const ext = extname(destName);
       const srcChildPath = join(srcDir, itemName);
-      const destChildPath = join(destDir, destName);
+
+      const destRootPath = join(destDir, destName);
+
       const s = await fs.promises.stat(srcChildPath);
 
       if (s.isDirectory()) {
-        // await fs.promises.mkdir(destChildPath, { recursive: true });
-        await mergeIntegrationDir(fileUpdates, opts, srcChildPath, destChildPath);
+        await mergeIntegrationDir(fileUpdates, opts, srcChildPath, destRootPath, alwaysInRoot);
       } else if (s.isFile()) {
+        const finalDestPath = getFinalDestPath(opts, destRootPath, destDir, destName, alwaysInRoot);
+
         if (destName === 'package.json') {
-          await mergePackageJsons(fileUpdates, srcChildPath, destChildPath);
+          await mergePackageJsons(fileUpdates, srcChildPath, destRootPath);
+        } else if (destName === 'settings.json') {
+          await mergeJsons(fileUpdates, srcChildPath, finalDestPath);
         } else if (destName === 'README.md') {
-          await mergeReadmes(fileUpdates, srcChildPath, destChildPath);
-        } else if (destName === '.gitignore') {
-          await mergeGitIgnores(fileUpdates, srcChildPath, destChildPath);
+          await mergeReadmes(fileUpdates, srcChildPath, finalDestPath);
+        } else if (
+          destName === '.gitignore' ||
+          destName === '.prettierignore' ||
+          destName === '.eslintignore'
+        ) {
+          await mergeIgnoresFile(fileUpdates, srcChildPath, destRootPath);
+        } else if (ext === '.css') {
+          await mergeCss(fileUpdates, srcChildPath, finalDestPath, opts);
+        } else if (fs.existsSync(finalDestPath)) {
+          fileUpdates.files.push({
+            path: finalDestPath,
+            content: await fs.promises.readFile(srcChildPath),
+            type: 'overwrite',
+          });
         } else {
-          if (fs.existsSync(destChildPath)) {
-            fileUpdates.files.push({
-              path: destChildPath,
-              content: await fs.promises.readFile(srcChildPath, 'utf-8'),
-              type: 'overwrite',
-            });
-          } else {
-            fileUpdates.files.push({
-              path: destChildPath,
-              content: await fs.promises.readFile(srcChildPath),
-              type: 'create',
-            });
-          }
+          fileUpdates.files.push({
+            path: finalDestPath,
+            content: await fs.promises.readFile(srcChildPath),
+            type: 'create',
+          });
         }
       }
     })
   );
 }
 
+function getFinalDestPath(
+  opts: UpdateAppOptions,
+  destRootPath: string,
+  destDir: string,
+  destName: string,
+  alwaysInRoot?: string[]
+) {
+  // If the integration has a projectDir, copy the files to the projectDir
+  // Unless that path is part of "alwaysInRoot"
+  const projectDir = opts.projectDir ? opts.projectDir : '';
+  const rootDirEndIndex = destDir.indexOf(opts.rootDir) + opts.rootDir.length;
+  const destWithoutRoot = destDir.slice(rootDirEndIndex);
+
+  const destChildPath = join(opts.rootDir, projectDir, destWithoutRoot, destName);
+
+  const finalDestPath =
+    alwaysInRoot &&
+    alwaysInRoot.some((rootItem) => destName.includes(rootItem) || destDir.includes(rootItem))
+      ? destRootPath
+      : destChildPath;
+
+  return finalDestPath;
+}
+
 async function mergePackageJsons(fileUpdates: FsUpdates, srcPath: string, destPath: string) {
   const srcContent = await fs.promises.readFile(srcPath, 'utf-8');
-  const srcPkgJson = JSON.parse(srcContent);
-
-  const props = ['scripts', 'dependencies', 'devDependencies'];
   try {
+    const srcPkgJson = JSON.parse(srcContent);
+    const props = ['scripts', 'dependencies', 'devDependencies'];
     const destPkgJson = JSON.parse(await fs.promises.readFile(destPath, 'utf-8'));
     props.forEach((prop) => {
       mergePackageJsonSort(srcPkgJson, destPkgJson, prop);
@@ -65,6 +99,27 @@ async function mergePackageJsons(fileUpdates: FsUpdates, srcPath: string, destPa
     fileUpdates.files.push({
       path: destPath,
       content: JSON.stringify(destPkgJson, null, 2) + '\n',
+      type: 'modify',
+    });
+  } catch (e) {
+    fileUpdates.files.push({
+      path: destPath,
+      content: srcContent,
+      type: 'create',
+    });
+  }
+}
+
+async function mergeJsons(fileUpdates: FsUpdates, srcPath: string, destPath: string) {
+  const srcContent = await fs.promises.readFile(srcPath, 'utf-8');
+  try {
+    const srcPkgJson = JSON.parse(srcContent);
+    const destPkgJson = JSON.parse(await fs.promises.readFile(destPath, 'utf-8'));
+    Object.assign(srcPkgJson, destPkgJson);
+
+    fileUpdates.files.push({
+      path: destPath,
+      content: JSON.stringify(srcPkgJson, null, 2) + '\n',
       type: 'modify',
     });
   } catch (e) {
@@ -108,8 +163,8 @@ async function mergeReadmes(fileUpdates: FsUpdates, srcPath: string, destPath: s
   }
 
   const pkgManager = getPackageManager();
-  if (pkgManager === 'yarn') {
-    destContent = destContent.replace(/npm run/g, 'yarn');
+  if (pkgManager !== 'npm') {
+    destContent = destContent.replace(/\b(npm run|pnpm run|yarn( run)?)\b/g, pkgManager);
   }
 
   fileUpdates.files.push({
@@ -119,7 +174,7 @@ async function mergeReadmes(fileUpdates: FsUpdates, srcPath: string, destPath: s
   });
 }
 
-async function mergeGitIgnores(fileUpdates: FsUpdates, srcPath: string, destPath: string) {
+async function mergeIgnoresFile(fileUpdates: FsUpdates, srcPath: string, destPath: string) {
   const srcContent = await fs.promises.readFile(srcPath, 'utf-8');
 
   try {
@@ -140,6 +195,37 @@ async function mergeGitIgnores(fileUpdates: FsUpdates, srcPath: string, destPath
       type: 'modify',
     });
   } catch (e) {
+    fileUpdates.files.push({
+      path: destPath,
+      content: srcContent,
+      type: 'create',
+    });
+  }
+}
+
+async function mergeCss(
+  fileUpdates: FsUpdates,
+  srcPath: string,
+  destPath: string,
+  opts: UpdateAppOptions
+) {
+  const srcContent = await fs.promises.readFile(srcPath, 'utf-8');
+
+  try {
+    // css file already exists, prepend the src to the dest file
+    const destContent = await fs.promises.readFile(destPath, 'utf-8');
+    const mergedContent = srcContent.trim() + '\n\n' + destContent.trim() + '\n';
+
+    const isAddingLibrary = opts.installDeps === true;
+    // When it's integrating a css library, use merge strategy
+    // Otherwise, it's initializing a new Qwik project, use overwrite strategy
+    fileUpdates.files.push({
+      path: destPath,
+      content: isAddingLibrary ? mergedContent : srcContent,
+      type: isAddingLibrary ? 'modify' : 'overwrite',
+    });
+  } catch (e) {
+    // css file doesn't already exist, just copy it over
     fileUpdates.files.push({
       path: destPath,
       content: srcContent,

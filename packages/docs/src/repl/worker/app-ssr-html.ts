@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import type { RenderOptions, RenderToStringResult } from '@builder.io/qwik/server';
 import type { ReplInputOptions, ReplResult } from '../types';
 import type { QwikWorkerGlobal } from './repl-service-worker';
@@ -11,11 +10,12 @@ export const appSsrHtml = async (options: ReplInputOptions, cache: Cache, result
   const start = performance.now();
 
   const mod: any = { exports: {} };
+  // eslint-disable-next-line no-new-func
   const run = new Function('module', 'exports', 'require', ssrModule.code);
   run(mod, mod.exports, noopRequire);
 
   const server: ServerModule = mod.exports;
-  const render = typeof server === 'function' ? server : server.default ?? server.render;
+  const render = typeof server === 'function' ? server : (server.default ?? server.render);
   if (typeof render !== 'function') {
     throw new Error(`Server module "${ssrModule.path}" does not export render()`);
   }
@@ -70,6 +70,11 @@ export const appSsrHtml = async (options: ReplInputOptions, cache: Cache, result
     base: baseUrl,
     manifest: result.manifest,
     prefetchStrategy: null as any,
+  }).catch((e) => {
+    console.error('SSR failed', e);
+    return {
+      html: `<html><h1>SSR Error</h1><pre><code>${String(e).replaceAll('<', '&lt;')}</code></pre></html>`,
+    };
   });
 
   console.log = log;
@@ -89,7 +94,7 @@ export const appSsrHtml = async (options: ReplInputOptions, cache: Cache, result
 
   if (options.buildMode !== 'production') {
     try {
-      const html = self.prettier?.format(result.html, {
+      const html = await self.prettier?.format(result.html, {
         parser: 'html',
         plugins: self.prettierPlugins,
       });

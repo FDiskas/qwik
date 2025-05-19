@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import type { InputOptions } from 'rollup';
 import type { Diagnostic, QwikRollupPluginOptions } from '@builder.io/qwik/optimizer';
 import type { ReplInputOptions, ReplResult } from '../types';
@@ -14,7 +13,7 @@ export const appBundleSsr = async (options: ReplInputOptions, result: ReplResult
     buildMode: options.buildMode,
     debug: options.debug,
     srcInputs: getInputs(options),
-    entryStrategy: { type: 'inline' },
+    entryStrategy: { type: 'hoist' },
     manifestInput: result.manifest,
   };
 
@@ -27,7 +26,6 @@ export const appBundleSsr = async (options: ReplInputOptions, result: ReplResult
 
   const rollupInputOpts: InputOptions = {
     input: entry.path,
-    cache: self.rollupCache,
     plugins: [
       replCss(options),
       self.qwikOptimizer?.qwikRollup(qwikRollupSsrOpts),
@@ -61,8 +59,6 @@ export const appBundleSsr = async (options: ReplInputOptions, result: ReplResult
 
   const bundle = await self.rollup?.rollup(rollupInputOpts);
   if (bundle) {
-    self.rollupCache = bundle.cache;
-
     const generated = await bundle.generate({
       format: 'cjs',
       inlineDynamicImports: true,

@@ -1,28 +1,31 @@
-/* eslint-disable no-console */
-import color from 'kleur';
 import type { NextSteps } from '../types';
+import { cyan } from 'kleur/colors';
 
 export function logSuccessFooter(docs: string[]) {
+  const outString = [];
+
   if (docs.length > 0) {
-    console.log(`📚 ${color.cyan('Relevant docs:')}`);
+    outString.push(`📄 ${cyan('Relevant docs:')}`);
     docs.forEach((link) => {
-      console.log(`   ${link}`);
+      outString.push(`   ${link}`);
     });
   }
-  console.log(``);
-  console.log(`💬 ${color.cyan('Questions? Start the conversation at:')}`);
-  console.log(`   https://qwik.builder.io/chat`);
-  console.log(`   https://twitter.com/QwikDev`);
-  console.log(``);
+  outString.push(``);
+  outString.push(`💬 ${cyan('Questions? Start the conversation at:')}`);
+  outString.push(`   https://qwik.dev/chat`);
+  outString.push(`   https://twitter.com/QwikDev`);
+  outString.push(``);
+
+  return outString.join('\n');
 }
 
-/**
- * Log the next STEPS *ACTION REQUIRED*
- */
-export function logNextStep(nextSteps: NextSteps | undefined) {
+/** Log the next STEPS _ACTION REQUIRED_ */
+export function logNextStep(nextSteps: NextSteps | undefined, packageManager: string) {
+  const outString: string[] = [];
   if (nextSteps) {
-    console.log(`🟣 ${color.bgMagenta(` ${nextSteps.title ?? 'Action Required!'} `)}`);
-    nextSteps.lines.forEach((step) => console.log(`   ${step}`));
-    console.log(``);
+    nextSteps.lines.forEach((step) =>
+      outString.push(`${step.replace(/\bpnpm\b/g, packageManager)}`)
+    );
   }
+  return outString.join('\n');
 }

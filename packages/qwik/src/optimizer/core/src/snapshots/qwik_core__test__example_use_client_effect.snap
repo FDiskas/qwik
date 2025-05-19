@@ -1,11 +1,13 @@
 ---
 source: packages/qwik/src/optimizer/core/src/test.rs
+assertion_line: 1369
 expression: output
+snapshot_kind: text
 ---
 ==INPUT==
 
 
-import { component$, useClientEffect$, useStore, useStyles$ } from '@builder.io/qwik';
+import { component$, useBrowserVisibleTask$, useStore, useStyles$ } from '@builder.io/qwik';
 
 export const Child = component$(() => {
     const state = useStore({
@@ -13,7 +15,7 @@ export const Child = component$(() => {
     });
 
     // Double count watch
-    useClientEffect$(() => {
+    useBrowserVisibleTask$(() => {
         const timer = setInterval(() => {
         state.count++;
         }, 1000);
@@ -30,59 +32,10 @@ export const Child = component$(() => {
 });
 
 
-============================= test.js ==
-
-import { componentQrl } from "@builder.io/qwik";
-import { qrl } from "@builder.io/qwik";
-export const Child = /*#__PURE__*/ componentQrl(qrl(()=>import("./child_component_9gyf01gdkqw"), "Child_component_9GyF01GDKqw"));
-
-
-Some("{\"version\":3,\"sources\":[\"/user/qwik/src/test.tsx\"],\"names\":[],\"mappings\":\"AACA;;AAEA,OAAO,MAAM,KAAK,iBAAG,6FAoBnB,CAAC\"}")
-============================= child_component_9gyf01gdkqw.js (ENTRY POINT)==
-
-import { jsx as _jsx } from "@builder.io/qwik/jsx-runtime";
-import { _wrapSignal } from "@builder.io/qwik";
-import { qrl } from "@builder.io/qwik";
-import { useClientEffectQrl } from "@builder.io/qwik";
-import { useStore } from "@builder.io/qwik";
-export const Child_component_9GyF01GDKqw = ()=>{
-    const state = useStore({
-        count: 0
-    });
-    // Double count watch
-    useClientEffectQrl(qrl(()=>import("./child_component_useclienteffect_kyrt1iert9g"), "Child_component_useClientEffect_kYRT1iERt9g", [
-        state
-    ]));
-    return /*#__PURE__*/ _jsx("div", {
-        children: _wrapSignal(state, "count")
-    });
-};
-
-
-Some("{\"version\":3,\"sources\":[\"/user/qwik/src/test.tsx\"],\"names\":[],\"mappings\":\";;;;;2CAGgC,IAAM;IAClC,MAAM,KAAK,GAAG,QAAQ,CAAC;QACnB,KAAK,EAAE,CAAC;KACX,CAAC,AAAC;IAEH,qBAAqB;IACrB;;OAOE,CAAC;IAEH,qBACI,KAAC,KAAG;8BACH,KAAK;MACJ,CACJ;AACN,CAAC\"}")
-/*
-{
-  "origin": "test.tsx",
-  "name": "Child_component_9GyF01GDKqw",
-  "entry": null,
-  "displayName": "Child_component",
-  "hash": "9GyF01GDKqw",
-  "canonicalFilename": "child_component_9gyf01gdkqw",
-  "extension": "js",
-  "parent": null,
-  "ctxKind": "function",
-  "ctxName": "component$",
-  "captures": false,
-  "loc": [
-    122,
-    463
-  ]
-}
-*/
-============================= child_component_useclienteffect_kyrt1iert9g.js (ENTRY POINT)==
+============================= test.tsx_Child_component_useBrowserVisibleTask_0IGFPOyJmQA.js (ENTRY POINT)==
 
 import { useLexicalScope } from "@builder.io/qwik";
-export const Child_component_useClientEffect_kYRT1iERt9g = ()=>{
+export const Child_component_useBrowserVisibleTask_0IGFPOyJmQA = ()=>{
     const [state] = useLexicalScope();
     const timer = setInterval(()=>{
         state.count++;
@@ -94,23 +47,74 @@ export const Child_component_useClientEffect_kYRT1iERt9g = ()=>{
 export { _hW } from "@builder.io/qwik";
 
 
-Some("{\"version\":3,\"sources\":[\"/user/qwik/src/test.tsx\"],\"names\":[],\"mappings\":\";2DASqB;;IACb,MAAM,KAAK,GAAG,WAAW,CAAC,IAAM;QAChC,KAAK,CAAC,KAAK,EAAE,CAAC;IACd,CAAC,EAAE,IAAI,CAAC,AAAC;IACT,OAAO,IAAM;QACb,aAAa,CAAC,KAAK,CAAC,CAAC;IACrB,CAAC,CAAA;CACJ\"}")
+Some("{\"version\":3,\"sources\":[\"/user/qwik/src/test.tsx\"],\"names\":[],\"mappings\":\";iEAS2B;;IACnB,MAAM,QAAQ,YAAY;QAC1B,MAAM,KAAK;IACX,GAAG;IACH,OAAO;QACP,cAAc;IACd\"}")
 /*
 {
   "origin": "test.tsx",
-  "name": "Child_component_useClientEffect_kYRT1iERt9g",
+  "name": "Child_component_useBrowserVisibleTask_0IGFPOyJmQA",
   "entry": null,
-  "displayName": "Child_component_useClientEffect",
-  "hash": "kYRT1iERt9g",
-  "canonicalFilename": "child_component_useclienteffect_kyrt1iert9g",
+  "displayName": "test.tsx_Child_component_useBrowserVisibleTask",
+  "hash": "0IGFPOyJmQA",
+  "canonicalFilename": "test.tsx_Child_component_useBrowserVisibleTask_0IGFPOyJmQA",
+  "path": "",
   "extension": "js",
   "parent": "Child_component_9GyF01GDKqw",
   "ctxKind": "function",
-  "ctxName": "useClientEffect$",
+  "ctxName": "useBrowserVisibleTask$",
   "captures": true,
   "loc": [
-    232,
-    391
+    244,
+    403
+  ]
+}
+*/
+============================= test.js ==
+
+import { componentQrl } from "@builder.io/qwik";
+import { qrl } from "@builder.io/qwik";
+export const Child = /*#__PURE__*/ componentQrl(/*#__PURE__*/ qrl(()=>import("./test.tsx_Child_component_9GyF01GDKqw"), "Child_component_9GyF01GDKqw"));
+
+
+Some("{\"version\":3,\"sources\":[\"/user/qwik/src/test.tsx\"],\"names\":[],\"mappings\":\";;AAGA,OAAO,MAAM,sBAAQ,qHAoBlB\"}")
+============================= test.tsx_Child_component_9GyF01GDKqw.js (ENTRY POINT)==
+
+import { _fnSignal } from "@builder.io/qwik";
+import { _jsxQ } from "@builder.io/qwik";
+import { qrl } from "@builder.io/qwik";
+import { useBrowserVisibleTaskQrl } from "@builder.io/qwik";
+import { useStore } from "@builder.io/qwik";
+export const Child_component_9GyF01GDKqw = ()=>{
+    const state = useStore({
+        count: 0
+    });
+    // Double count watch
+    useBrowserVisibleTaskQrl(/*#__PURE__*/ qrl(()=>import("./test.tsx_Child_component_useBrowserVisibleTask_0IGFPOyJmQA"), "Child_component_useBrowserVisibleTask_0IGFPOyJmQA", [
+        state
+    ]));
+    return /*#__PURE__*/ _jsxQ("div", null, null, _fnSignal((p0)=>p0.count, [
+        state
+    ], "p0.count"), 3, "u6_0");
+};
+
+
+Some("{\"version\":3,\"sources\":[\"/user/qwik/src/test.tsx\"],\"names\":[],\"mappings\":\";;;;;2CAGgC;IAC5B,MAAM,QAAQ,SAAS;QACnB,OAAO;IACX;IAEA,qBAAqB;IACrB;;;IASA,qBACI,MAAC,mCACA,GAAM,KAAK;;;AAGpB\"}")
+/*
+{
+  "origin": "test.tsx",
+  "name": "Child_component_9GyF01GDKqw",
+  "entry": null,
+  "displayName": "test.tsx_Child_component",
+  "hash": "9GyF01GDKqw",
+  "canonicalFilename": "test.tsx_Child_component_9GyF01GDKqw",
+  "path": "",
+  "extension": "js",
+  "parent": null,
+  "ctxKind": "function",
+  "ctxName": "component$",
+  "captures": false,
+  "loc": [
+    128,
+    475
   ]
 }
 */

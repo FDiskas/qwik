@@ -1,394 +1,103 @@
-/* eslint-disable */
-// @ts-ignore
-import Utils from '@typescript-eslint/utils';
+import * as vitest from 'vitest';
+import { RuleTester, type RuleTesterConfig } from '@typescript-eslint/rule-tester';
 import { fileURLToPath } from 'node:url';
-import { test } from 'uvu';
 import { rules } from './index';
+import { readdir, readFile, stat } from 'node:fs/promises';
+import { join, dirname } from 'path';
 
-const RuleTester = Utils.ESLintUtils.RuleTester;
+// https://typescript-eslint.io/packages/rule-tester/#vitest
+RuleTester.afterAll = vitest.afterAll;
+RuleTester.it = vitest.it;
+RuleTester.itOnly = vitest.it.only;
+RuleTester.describe = vitest.describe;
 
 const testConfig = {
-  parser: '@typescript-eslint/parser',
-  env: {
-    es6: true,
+  rules: {
+    'no-console': 'error',
   },
-  parserOptions: {
-    tsconfigRootDir: fileURLToPath(new URL('.', import.meta.url)),
-    project: ['./tsconfig-tests.json'],
-    ecmaFeatures: {
-      jsx: true,
+  languageOptions: {
+    parserOptions: {
+      projectService: {
+        allowDefaultProject: ['*.ts*'],
+      },
+      sourceType: 'module',
+      ecmaFeatures: {
+        jsx: true,
+      },
+      ecmaVersion: 2024,
+      project: ['./tests/tsconfig.json'],
+      tsconfigRootDir: fileURLToPath(new URL('.', import.meta.url)),
     },
-    ecmaVersion: 2020,
-    sourceType: 'module',
   },
-};
+} as RuleTesterConfig;
 
-const ruleTester = new RuleTester(testConfig as any);
-test('no-use-after-await', () => {
-  ruleTester.run('my-rule', rules['no-use-after-await'] as any, {
-    valid: [
-      `
-      export const HelloWorld = component$(async () => {
-          useMethod();
-          await something();
-          let a;
-          a = 2;
-          return $(() => {
-            return <div>{a}</div>
-          });
-        });
-        const A = () => { console.log('A') };
-        export const B = () => {
-          A();
-        }
-        `,
-      `export const HelloWorld = component$(async () => {
-          useMethod();
-          await something();
-          await stuff();
-          return $(() => {
-            useHostElement();
-            return <div></div>
-          });
-        });`,
-    ],
-    invalid: [
-      {
-        code: `export const HelloWorld = component$(async () => {
-            await something();
-            useMethod();
-            return $(() => {
-              return (
-                <div>
-                  {prop}
-                </div>
-              );
-            });
-          });`,
-        errors: ['Calling use* methods after await is not safe.'],
-      },
-      {
-        code: `export const HelloWorld = component$(async () => {
-            if (stuff) {
-              await something();
-            }
-            useMethod();
-            return $(() => {
-              return (
-                <div>
-                  {prop}
-                </div>
-              );
-            });
-          });`,
-        errors: ['Calling use* methods after await is not safe.'],
-      },
-    ],
-  });
-});
-
-test('valid-lexical-scope', () => {
-  ruleTester.run('valid-lexical-scope', rules['valid-lexical-scope'], {
-    valid: [
-      `
-      export type NoSerialize<T> = (T & { __no_serialize__: true }) | undefined;
-      import { useMethod, component$ } from 'stuff';
-      export interface Value {
-        value: number;
-        fn: NoSerialize<() => void>;
-      }
-      export function getFn(): NoSerialize<() => void> {
-        return () => {};
-      }
-      export const HelloWorld = component$(() => {
-        const state: Value = { value: 12, fn: getFn() };
-        useWatch$(() => {
-          console.log(state.value);
-        });
-        return <div></div>
-      });`,
-      `
-        import { useMethod, component$ } from 'stuff';
-        interface Value {
-          value: 12;
-        }
-        type NullValue = Value | null;
-
-        export const HelloWorld = component$(() => {
-          const bar = () => 'bar';
-          const foo = 'bar';
-          const a: Value = {value: 12};
-          const b: NullValue = null;
-          useMethod(foo, bar);
-          return <div></div>
-        });`,
-      `export const HelloWorld = component$(() => {
-          const getMethod = () => {
-            return 'value';
-          }
-          const useMethod = getMethod();
-          useWatch$(() => {
-            console.log(useMethod);
-          });
-          return <div></div>;
-        });`,
-
-      `export const HelloWorld = component$(() => {
-          const getMethod = () => {
-            return {
-              value: 'string',
-              other: 12,
-              values: ['23', 22, {prop: number}],
-              foo: {
-                bar: 'string'
-              }
-            };
-          }
-          const useMethod = getMethod();
-          useWatch$(() => {
-            console.log(useMethod);
-          });
-          return <div></div>;
-        });`,
-      `
-        export const useMethod = () => {
-          console.log('');
-        }
-        export const HelloWorld = component$(() => {
-          const foo = 'bar';
-          useMethod(foo);
-          return <div></div>
-        });`,
-      `
-          import { useWatch$ } from '@builder.io/qwik';
-          export const HelloWorld = component$(() => {
-            function getValue(): number | string | null | undefined | { prop: string } {
-              return window.aaa;
-            }
-            const a = getValue();
-            useWatch$(() => {
-              console.log(a);
-            });
-            return <div></div>;
-          });`,
-      `
-          export const HelloWorld = component$(() => {
-            const getMethod = () => {
-              return Promise.resolve();
-            }
-            const useMethod = getMethod();
-            const obj = {
-              stuff: 12,
-              b: false,
-              n: null,
-              stuff: new Date(),
-              url: new URL(),
-              regex: new RegExp("dfdf"),
-              u: undefined,
-              manu: 'string',
-              complex: {
-                s: true,
-              }
-            };
-            useWatch$(() => {
-              console.log(useMethod, obj);
-            });
-            return <div></div>;
-          });`,
-      `
-          import { useWatch$ } from '@builder.io/qwik';
-          export const HelloWorld = component$(() => {
-            async function getValue() {
-              return 'ffg';
-            }
-            const a = getValue();
-            return <div onClick$={() => {
-              console.log(a);
-            }}></div>;
-          });`,
-
-      `
-  export interface PropFnInterface<ARGS extends any[], RET> {
-    (...args: ARGS): Promise<RET>
+const ruleTester = new RuleTester(testConfig);
+interface TestCase {
+  name: string;
+  filename: string;
+  code: string;
+}
+interface InvalidTestCase extends TestCase {
+  errors: { messageId: string }[];
+}
+await (async function setupEsLintRuleTesters() {
+  // list './test' directory content and set up one RuleTester per directory
+  let testDir = join(dirname(new URL(import.meta.url).pathname), './tests');
+  const isWindows = process.platform === 'win32';
+  if (isWindows && testDir.startsWith('\\')) {
+    // in Windows testDir starts with a \ causing errors
+    testDir = testDir.substring(1);
   }
 
-  export type PropFunction<T extends Function> = T extends (...args: infer ARGS) => infer RET
-    ? PropFnInterface<ARGS, RET>
-    : never;
-
-  export interface Props {
-    method$: PropFunction<() => void>;
-  }
-
-  export const HelloWorld = component$((props: Props) => {
-    return <div onClick$={async () => {
-      await props.method$();
-    }}></div>;
-  });
-      `,
-      ``,
-    ],
-    invalid: [
-      {
-        code: `
-          const useMethod = 12;
-          export const HelloWorld = component$(() => {
-            const foo = 'bar';
-            useMethod(foo);
-            return <div></div>
-          });`,
-        errors: [
-          'Identifier ("useMethod") can not be captured inside the scope (component$) because it\'s declared at the root of the module and it is not exported. Add export. Check out https://qwik.builder.io/docs/advanced/optimizer for more details.',
-        ],
-      },
-      {
-        code: `
-          export const HelloWorld = component$(() => {
-            const getMethod = () => {
-              return () => {};
-            }
-            const useMethod = getMethod();
-            useWatch$(() => {
-              console.log(useMethod);
-            });
-            return <div></div>;
-          });`,
-        errors: [
-          'Identifier ("useMethod") can not be captured inside the scope (useWatch$) because it is a function, which is not serializable. Check out https://qwik.builder.io/docs/advanced/optimizer for more details.',
-        ],
-      },
-      {
-        code: `
-          export const HelloWorld = component$(() => {
-            function useMethod() {
-              console.log('stuff');
-            };
-            useWatch$(() => {
-              console.log(useMethod);
-            });
-            return <div></div>;
-          });`,
-
-        errors: [
-          'Identifier ("useMethod") can not be captured inside the scope (useWatch$) because it is a function, which is not serializable. Check out https://qwik.builder.io/docs/advanced/optimizer for more details.',
-        ],
-      },
-      {
-        code: `
-          export const HelloWorld = component$(() => {
-            class Stuff { }
-            useWatch$(() => {
-              console.log(new Stuff(), useMethod);
-            });
-            return <div></div>;
-          });`,
-
-        errors: [
-          'Identifier ("Stuff") can not be captured inside the scope (useWatch$) because it is a class constructor, which is not serializable. Check out https://qwik.builder.io/docs/advanced/optimizer for more details.',
-        ],
-      },
-      {
-        code: `
-          export const HelloWorld = component$(() => {
-            class Stuff { }
-            const stuff = new Stuff();
-            useWatch$(() => {
-              console.log(stuff, useMethod);
-            });
-            return <div></div>;
-          });`,
-
-        errors: [
-          'Identifier ("stuff") can not be captured inside the scope (useWatch$) because it is an instance of the "Stuff" class, which is not serializable. Use a simple object literal instead. Check out https://qwik.builder.io/docs/advanced/optimizer for more details.',
-        ],
-      },
-      {
-        code: `
-          import { useWatch$ } from '@builder.io/qwik';
-          export const HelloWorld = component$(() => {
-            const a = Symbol();
-            useWatch$(() => {
-              console.log(a);
-            });
-            return <div></div>;
-          });`,
-
-        errors: [
-          'Identifier ("a") can not be captured inside the scope (useWatch$) because it is Symbol, which is not serializable. Check out https://qwik.builder.io/docs/advanced/optimizer for more details.',
-        ],
-      },
-      {
-        code: `
-          import { useWatch$ } from '@builder.io/qwik';
-          export const HelloWorld = component$(() => {
-            function getValue() {
-              if (Math.random() < 0.5) {
-                return 'string';
-              } else {
-                return () => { console.log() };
-              }
-            }
-            const a = getValue();
-            useWatch$(() => {
-              console.log(a);
-            });
-            return <div></div>;
-          });`,
-
-        errors: [
-          'Identifier ("a") can not be captured inside the scope (useWatch$) because it is a function, which is not serializable. Check out https://qwik.builder.io/docs/advanced/optimizer for more details.',
-        ],
-      },
-      {
-        code: `
-        import { useMethod, component$ } from 'stuff';
-        export interface Value {
-          value: () => void;
+  const ruleNames = await readdir(testDir);
+  for (const ruleName of ruleNames) {
+    const rule = rules[ruleName];
+    if (ruleName.endsWith('.json')) {
+      continue;
+    }
+    if (!rule) {
+      throw new Error(
+        `Test directory has rule '${ruleName}' but related eslint rule is missing. Valid rules are: ${Object.keys(
+          rules
+        ).join(', ')}`
+      );
+    }
+    const ruleDir = join(testDir, ruleName);
+    const valid: TestCase[] = [];
+    const invalid: InvalidTestCase[] = [];
+    const testCaseNames = await readdir(ruleDir);
+    for (const testCaseName of testCaseNames) {
+      let path = join(ruleDir, testCaseName);
+      while ((await stat(path)).isDirectory()) {
+        const files = await readdir(path);
+        if (files.length !== 1) {
+          throw new Error(`Test directory '${path}' must have exactly one file.`);
         }
-        export const HelloWorld = component$(() => {
-          const state: Value = { value: () => console.log('thing') };
-          useWatch$(() => {
-            console.log(state.value);
-          });
-          return <div></div>
-        });`,
-        errors: [
-          'Identifier ("state") can not be captured inside the scope (useWatch$) because "state.value" is a function, which is not serializable. Check out https://qwik.builder.io/docs/advanced/optimizer for more details.',
-        ],
-      },
-      {
-        code: `
-        import { component$ } from 'stuff';
-        export const HelloWorld = component$(() => {
-          const click = () => console.log();
-          return (
-            <button onClick$={click}>
-            </button>
+        path = join(path, files[0]);
+      }
+      const code = String(await readFile(path, 'utf-8'));
+      const filename = path.replace(testDir, './tests');
+      if (testCaseName.startsWith('valid-')) {
+        valid.push({ name: testCaseName, filename, code });
+      } else if (testCaseName.startsWith('invalid-')) {
+        const EXPECT_ERROR_COMMENT = '// Expect error: ';
+        const errors = code
+          .split('\n')
+          .map((line) => line.trim())
+          .filter((line) => line.startsWith(EXPECT_ERROR_COMMENT))
+          .map((line) => JSON.parse(line.substring(EXPECT_ERROR_COMMENT.length)));
+        if (!errors.length) {
+          throw new Error(
+            `Invalid test case '${filename}' does not have '${EXPECT_ERROR_COMMENT}' comment.`
           );
-        });`,
-        errors: [
-          'JSX attributes that end with $ can only take an inlined arrow function of a QRL identifier. Make sure the value is created using $()',
-        ],
-      },
-      {
-        code: `
-        import { component$ } from 'stuff';
-        export const HelloWorld = component$(() => {
-          let click: string = '';
-          return (
-            <button onClick$={() => {
-              click = '';
-
-            }}>
-            </button>
-          );
-        });`,
-        errors: [
-          'The value of the identifier ("click") can not be changed once it is captured the scope (onClick$). Check out https://qwik.builder.io/docs/advanced/optimizer for more details.',
-        ],
-      },
-    ],
-  });
-});
-
-export {};
+        }
+        invalid.push({ name: testCaseName, filename, code, errors });
+      } else {
+        throw new Error(`Unexpected file '${testCaseName}' in directory '${ruleDir}'`);
+      }
+    }
+    if (valid.length || invalid.length) {
+      await ruleTester.run(ruleName, rule, { valid, invalid });
+    }
+  }
+})();

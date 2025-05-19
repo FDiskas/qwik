@@ -4,13 +4,18 @@ import type { QwikWorkerGlobal } from './repl-service-worker';
 import type { MinifyOptions } from 'terser';
 import type { ReplInputOptions } from '../types';
 import { depResponse } from './repl-dependencies';
-import { QWIK_REPL_DEPS_CACHE } from './repl-constants';
 
 export const replResolver = (options: ReplInputOptions, buildMode: 'client' | 'ssr'): Plugin => {
+  const srcInputs = options.srcInputs;
+  const resolveId = (id: string) => {
+    return srcInputs.find((i) => i.path === id)?.path;
+  };
+
   return {
     name: 'repl-resolver',
 
     resolveId(id, importer) {
+      // Entry point
       if (!importer) {
         return id;
       }
@@ -24,10 +29,20 @@ export const replResolver = (options: ReplInputOptions, buildMode: 'client' | 's
       if (id === '@builder.io/qwik/server') {
         return '\0qwikServer';
       }
-      return {
-        id,
-        external: true,
-      };
+      if (id === '@builder.io/qwik/preloader') {
+        return '\0qwikPreloader';
+      }
+      // Simple relative file resolution
+      if (id.startsWith('./')) {
+        const extensions = ['', '.tsx', '.ts'];
+        id = id.slice(1);
+        for (const ext of extensions) {
+          const path = resolveId(id + ext);
+          if (path) {
+            return path;
+          }
+        }
+      }
     },
 
     async load(id) {
@@ -44,26 +59,30 @@ export const replResolver = (options: ReplInputOptions, buildMode: 'client' | 's
         }
       }
       if (id === '\0qwikCore') {
-        const cache = await caches.open(QWIK_REPL_DEPS_CACHE);
         if (options.buildMode === 'production') {
-          const rsp = await depResponse(
-            cache,
-            '@builder.io/qwik',
-            options.version,
-            '/core.min.mjs'
-          );
+          const rsp = await depResponse('@builder.io/qwik', '/core.min.mjs');
           if (rsp) {
-            return rsp.clone().text();
+            return rsp.text();
           }
         }
 
-        const rsp = await depResponse(cache, '@builder.io/qwik', options.version, '/core.mjs');
+        const rsp = await depResponse('@builder.io/qwik', '/core.mjs');
         if (rsp) {
-          return rsp.clone().text();
+          return rsp.text();
         }
         throw new Error(`Unable to load Qwik core`);
       }
-      return null;
+      if (id === '\0qwikPreloader') {
+        const rsp = await depResponse('@builder.io/qwik', '/preloader.mjs');
+        if (rsp) {
+          return rsp.text();
+        }
+      }
+
+      // We're the fallback, we know all the files
+      if (/\.[jt]sx?$/.test(id)) {
+        throw new Error(`load: unknown module ${id}`);
+      }
     },
   };
 };
@@ -83,7 +102,10 @@ const getRuntimeBundle = (runtimeBundle: string) => {
 };
 
 export const replCss = (options: ReplInputOptions): Plugin => {
-  const isStylesheet = (id: string) => ['.css', '.scss', '.sass'].some((ext) => id.endsWith(ext));
+  const isStylesheet = (id: string) =>
+    ['.css', '.scss', '.sass', '.less', '.styl', '.stylus'].some((ext) =>
+      id.endsWith(`${ext}?inline`)
+    );
 
   return {
     name: 'repl-css',
@@ -97,7 +119,7 @@ export const replCss = (options: ReplInputOptions): Plugin => {
 
     load(id) {
       if (isStylesheet(id)) {
-        const input = options.srcInputs.find((i) => i.path.endsWith(id));
+        const input = options.srcInputs.find((i) => i.path.endsWith(id.replace(/\?inline$/, '')));
         if (input && typeof input.code === 'string') {
           return `const css = ${JSON.stringify(input.code)}; export default css;`;
         }

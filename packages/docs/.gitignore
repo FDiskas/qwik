@@ -3,6 +3,11 @@ build
 dist
 server
 functions/**/*.js
+# This is used in dev mode because service
+# workers don't support imports
+public/repl/repl-sw.js*
+
+!src/routes/api/qwik/server/
 
 # Development
 node_modules
@@ -13,6 +18,7 @@ node_modules
 .vscode
 .rollup.cache
 tsconfig.tsbuildinfo
+q-insights.json
 
 # Logs
 logs
@@ -32,3 +38,7 @@ lerna-debug.log*
 *.njsproj
 *.sln
 *.sw?
+
+# Cloudflare
+
+*.local

@@ -2,7 +2,7 @@
 
 ## Contribute new examples
 
-The current folder includes all the examples present in: http://qwik.builder.io/examples/introduction/hello-world
+The current folder includes all the examples present in: http://qwik.dev/examples/introduction/hello-world
 
 ### 1. Example category
 
@@ -46,7 +46,7 @@ Open the `examples-menu.json` and add your new example in the right section:
 
 At the root of the qwik repo, run:
 
-```bash
+```shell
 yarn
 yarn build
 yarn lint

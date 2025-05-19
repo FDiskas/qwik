@@ -1,6 +1,8 @@
 ---
 source: packages/qwik/src/optimizer/core/src/test.rs
+assertion_line: 2005
 expression: output
+snapshot_kind: text
 ---
 ==INPUT==
 
@@ -19,32 +21,31 @@ export const App = component$(() => {
 
 import { componentQrl } from "@builder.io/qwik";
 import { qrl } from "@builder.io/qwik";
-export const App = /*#__PURE__*/ componentQrl(qrl(()=>import("./app_component_ckepmxzlub0"), "App_component_ckEPmXZlub0"));
+export const App = /*#__PURE__*/ componentQrl(/*#__PURE__*/ qrl(()=>import("./test.tsx_App_component_ckEPmXZlub0"), "App_component_ckEPmXZlub0"));
 
 
-Some("{\"version\":3,\"sources\":[\"/user/qwik/src/test.tsx\"],\"names\":[],\"mappings\":\"AACA;;AAEA,OAAO,MAAM,GAAG,iBAAG,yFAMjB,CAAC\"}")
-============================= app_component_ckepmxzlub0.js (ENTRY POINT)==
+Some("{\"version\":3,\"sources\":[\"/user/qwik/src/test.tsx\"],\"names\":[],\"mappings\":\";;AAGA,OAAO,MAAM,oBAAM,iHAMhB\"}")
+============================= test.tsx_App_component_ckEPmXZlub0.js (ENTRY POINT)==
 
-import { jsx as _jsx } from "@builder.io/qwik/jsx-runtime";
+import { _jsxQ } from "@builder.io/qwik";
 export const App_component_ckEPmXZlub0 = ()=>{
     console.log(function*(lo, t) {
         console.log((yield (yield lo)(t.href).then((r)=>r.json())));
     });
-    return /*#__PURE__*/ _jsx("p", {
-        children: "Hello Qwik"
-    });
+    return /*#__PURE__*/ _jsxQ("p", null, null, "Hello Qwik", 3, "u6_0");
 };
 
 
-Some("{\"version\":3,\"sources\":[\"/user/qwik/src/test.tsx\"],\"names\":[],\"mappings\":\";yCAG8B,IAAM;IAChC,OAAO,CAAC,GAAG,CAAC,UAAU,EAAO,EAAE,CAAM,EAAE;QACvC,OAAO,CAAC,GAAG,CAAC,CAAA,MAAM,CAAC,MAAM,EAAE,CAAC,CAAC,CAAC,CAAC,IAAI,CAAC,CAAC,IAAI,CAAC,CAAC,CAAC,GAAK,CAAC,CAAC,IAAI,EAAE,CAAC,CAAA,CAAC,CAAC;IAC5D,CAAC,CAAC,CAAC;IAEH,qBAAO,KAAC,GAAC;kBAAC,YAAU;MAAI,CAAC;AAC7B,CAAC\"}")
+Some("{\"version\":3,\"sources\":[\"/user/qwik/src/test.tsx\"],\"names\":[],\"mappings\":\";yCAG8B;IAC1B,QAAQ,GAAG,CAAC,UAAU,EAAO,EAAE,CAAM;QACrC,QAAQ,GAAG,CAAC,CAAA,MAAM,CAAC,MAAM,EAAE,EAAE,EAAE,IAAI,EAAE,IAAI,CAAC,CAAC,IAAM,EAAE,IAAI,GAAE;IACzD;IAEA,qBAAO,MAAC,iBAAE;AACd\"}")
 /*
 {
   "origin": "test.tsx",
   "name": "App_component_ckEPmXZlub0",
   "entry": null,
-  "displayName": "App_component",
+  "displayName": "test.tsx_App_component",
   "hash": "ckEPmXZlub0",
-  "canonicalFilename": "app_component_ckepmxzlub0",
+  "canonicalFilename": "test.tsx_App_component_ckEPmXZlub0",
+  "path": "",
   "extension": "js",
   "parent": null,
   "ctxKind": "function",

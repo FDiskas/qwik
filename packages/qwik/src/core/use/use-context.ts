@@ -1,27 +1,33 @@
 import { fromCamelToKebabCase } from '../util/case';
 import { qError, QError_invalidContext, QError_notFoundContext } from '../error/error';
-import { qDev } from '../util/qdev';
+import { qDev, qSerialize } from '../util/qdev';
 import { isObject } from '../util/types';
 import { useSequentialScope } from './use-sequential-scope';
-import { getVirtualElement, QwikElement, VirtualElement } from '../render/dom/virtual-element';
-import type { RenderContext } from '../render/types';
-import { isComment } from '../util/element';
 import { assertTrue } from '../error/assert';
 import { verifySerializable } from '../state/common';
-import { getContext, tryGetContext } from '../state/context';
+import { getContext, type QContext } from '../state/context';
+import type { ContainerState } from '../container/container';
+import { invoke } from './use-core';
+import {
+  type QwikElement,
+  type VirtualElement,
+  getVirtualElement,
+} from '../render/dom/virtual-element';
+import { isComment } from '../util/element';
+import { Q_CTX, VIRTUAL_SYMBOL } from '../state/constants';
 
-// <docs markdown="../readme.md#Context">
+// <docs markdown="../readme.md#ContextId">
 // !!DO NOT EDIT THIS COMMENT DIRECTLY!!!
-// (edit ../readme.md#Context instead)
+// (edit ../readme.md#ContextId instead)
 /**
- * Context is a typesafe ID for your context.
+ * ContextId is a typesafe ID for your context.
  *
  * Context is a way to pass stores to the child components without prop-drilling.
  *
- * Use `createContext()` to create a `Context`. `Context` is just a serializable identifier for
- * the context. It is not the context value itself. See `useContextProvider()` and `useContext()`
- * for the values. Qwik needs a serializable ID for the context so that the it can track context
- * providers and consumers in a way that survives resumability.
+ * Use `createContextId()` to create a `ContextId`. A `ContextId` is just a serializable identifier
+ * for the context. It is not the context value itself. See `useContextProvider()` and
+ * `useContext()` for the values. Qwik needs a serializable ID for the context so that the it can
+ * track context providers and consumers in a way that survives resumability.
  *
  * ### Example
  *
@@ -32,7 +38,7 @@ import { getContext, tryGetContext } from '../state/context';
  * }
  * // Create a Context ID (no data is saved here.)
  * // You will use this ID to both create and retrieve the Context.
- * export const TodosContext = createContext<TodosStore>('Todos');
+ * export const TodosContext = createContextId<TodosStore>('Todos');
  *
  * // Example of providing context to child components.
  * export const App = component$(() => {
@@ -59,32 +65,29 @@ import { getContext, tryGetContext } from '../state/context';
  * });
  *
  * ```
+ *
  * @public
  */
 // </docs>
-export interface Context<STATE extends object> {
-  /**
-   * Design-time property to store type information for the context.
-   */
+export interface ContextId<STATE> {
+  /** Design-time property to store type information for the context. */
   readonly __brand_context_type__: STATE;
-  /**
-   * A unique ID for the context.
-   */
+  /** A unique ID for the context. */
   readonly id: string;
 }
 
-// <docs markdown="../readme.md#createContext">
+// <docs markdown="../readme.md#createContextId">
 // !!DO NOT EDIT THIS COMMENT DIRECTLY!!!
-// (edit ../readme.md#createContext instead)
+// (edit ../readme.md#createContextId instead)
 /**
- * Create a context ID to be used in your application.
+ * Create a context ID to be used in your application. The name should be written with no spaces.
  *
  * Context is a way to pass stores to the child components without prop-drilling.
  *
- * Use `createContext()` to create a `Context`. `Context` is just a serializable identifier for
- * the context. It is not the context value itself. See `useContextProvider()` and `useContext()`
- * for the values. Qwik needs a serializable ID for the context so that the it can track context
- * providers and consumers in a way that survives resumability.
+ * Use `createContextId()` to create a `ContextId`. A `ContextId` is just a serializable identifier
+ * for the context. It is not the context value itself. See `useContextProvider()` and
+ * `useContext()` for the values. Qwik needs a serializable ID for the context so that the it can
+ * track context providers and consumers in a way that survives resumability.
  *
  * ### Example
  *
@@ -95,7 +98,7 @@ export interface Context<STATE extends object> {
  * }
  * // Create a Context ID (no data is saved here.)
  * // You will use this ID to both create and retrieve the Context.
- * export const TodosContext = createContext<TodosStore>('Todos');
+ * export const TodosContext = createContextId<TodosStore>('Todos');
  *
  * // Example of providing context to child components.
  * export const App = component$(() => {
@@ -122,11 +125,12 @@ export interface Context<STATE extends object> {
  * });
  *
  * ```
+ *
  * @param name - The name of the context.
  * @public
  */
 // </docs>
-export const createContext = <STATE extends object>(name: string): Context<STATE> => {
+export const createContextId = <STATE = unknown>(name: string): ContextId<STATE> => {
   assertTrue(/^[\w/.-]+$/.test(name), 'Context name must only contain A-Z,a-z,0-9, _', name);
   return /*#__PURE__*/ Object.freeze({
     id: fromCamelToKebabCase(name),
@@ -140,10 +144,11 @@ export const createContext = <STATE extends object>(name: string): Context<STATE
  * Assign a value to a Context.
  *
  * Use `useContextProvider()` to assign a value to a context. The assignment happens in the
- * component's function. Once assign use `useContext()` in any child component to retrieve the
+ * component's function. Once assigned, use `useContext()` in any child component to retrieve the
  * value.
  *
- * Context is a way to pass stores to the child components without prop-drilling.
+ * Context is a way to pass stores to the child components without prop-drilling. Note that scalar
+ * values are allowed, but for reactivity you need signals or stores.
  *
  * ### Example
  *
@@ -154,7 +159,7 @@ export const createContext = <STATE extends object>(name: string): Context<STATE
  * }
  * // Create a Context ID (no data is saved here.)
  * // You will use this ID to both create and retrieve the Context.
- * export const TodosContext = createContext<TodosStore>('Todos');
+ * export const TodosContext = createContextId<TodosStore>('Todos');
  *
  * // Example of providing context to child components.
  * export const App = component$(() => {
@@ -181,72 +186,42 @@ export const createContext = <STATE extends object>(name: string): Context<STATE
  * });
  *
  * ```
+ *
  * @param context - The context to assign a value to.
  * @param value - The value to assign to the context.
  * @public
  */
 // </docs>
-export const useContextProvider = <STATE extends object>(
-  context: Context<STATE>,
-  newValue: STATE
-) => {
-  const { get, set, ctx } = useSequentialScope<boolean>();
-  if (get !== undefined) {
+export const useContextProvider = <STATE>(context: ContextId<STATE>, newValue: STATE) => {
+  const { val, set, elCtx } = useSequentialScope<boolean>();
+  if (val !== undefined) {
     return;
   }
   if (qDev) {
     validateContext(context);
   }
-  const hostElement = ctx.$hostElement$;
-  const hostCtx = getContext(hostElement);
-  let contexts = hostCtx.$contexts$;
-  if (!contexts) {
-    hostCtx.$contexts$ = contexts = new Map();
-  }
-  if (qDev) {
+  const contexts = (elCtx.$contexts$ ||= new Map());
+  if (qDev && qSerialize) {
     verifySerializable(newValue);
   }
   contexts.set(context.id, newValue);
   set(true);
 };
 
-/**
- * @alpha
- */
-export const useContextBoundary = (...ids: Context<any>[]) => {
-  const { get, set, ctx } = useSequentialScope<boolean>();
-  if (get !== undefined) {
-    return;
-  }
-  const hostElement = ctx.$hostElement$;
-  const hostCtx = getContext(hostElement);
-  let contexts = hostCtx.$contexts$;
-  if (!contexts) {
-    hostCtx.$contexts$ = contexts = new Map();
-  }
-  for (const c of ids) {
-    const value = resolveContext(c, hostElement, ctx.$renderCtx$);
-    if (value !== undefined) {
-      contexts.set(c.id, value);
-    }
-  }
-  contexts.set('_', true);
-  set(true);
-};
-
 export interface UseContext {
-  <STATE extends object, T>(context: Context<STATE>, defaultValue: T): STATE | T;
-  <STATE extends object>(context: Context<STATE>): STATE;
+  <STATE, T>(context: ContextId<STATE>, transformer: (value: STATE) => T): T;
+  <STATE, T>(context: ContextId<STATE>, defaultValue: T): STATE | T;
+  <STATE>(context: ContextId<STATE>): STATE;
 }
 
 // <docs markdown="../readme.md#useContext">
 // !!DO NOT EDIT THIS COMMENT DIRECTLY!!!
 // (edit ../readme.md#useContext instead)
 /**
- * Retrive Context value.
+ * Retrieve Context value.
  *
- * Use `useContext()` to retrieve the value of context in a component. To retrieve a value a
- * parent component needs to invoke `useContextProvider()` to assign a value.
+ * Use `useContext()` to retrieve the value of context in a component. To retrieve a value a parent
+ * component needs to invoke `useContextProvider()` to assign a value.
  *
  * ### Example
  *
@@ -257,7 +232,7 @@ export interface UseContext {
  * }
  * // Create a Context ID (no data is saved here.)
  * // You will use this ID to both create and retrieve the Context.
- * export const TodosContext = createContext<TodosStore>('Todos');
+ * export const TodosContext = createContextId<TodosStore>('Todos');
  *
  * // Example of providing context to child components.
  * export const App = component$(() => {
@@ -284,23 +259,27 @@ export interface UseContext {
  * });
  *
  * ```
+ *
  * @param context - The context to retrieve a value from.
  * @public
  */
 // </docs>
-export const useContext: UseContext = <STATE extends object>(
-  context: Context<STATE>,
-  defaultValue?: any
+export const useContext: UseContext = <STATE>(
+  context: ContextId<STATE>,
+  defaultValue?: STATE | ((current: STATE | undefined) => STATE)
 ) => {
-  const { get, set, ctx } = useSequentialScope<STATE>();
-  if (get !== undefined) {
-    return get;
+  const { val, set, iCtx, elCtx } = useSequentialScope<STATE>();
+  if (val !== undefined) {
+    return val;
   }
   if (qDev) {
     validateContext(context);
   }
 
-  const value = resolveContext(context, ctx.$hostElement$, ctx.$renderCtx$);
+  const value = resolveContext(context, elCtx, iCtx.$renderCtx$.$static$.$containerState$);
+  if (typeof defaultValue === 'function') {
+    return set(invoke(undefined, defaultValue as any, value));
+  }
   if (value !== undefined) {
     return set(value);
   }
@@ -310,75 +289,81 @@ export const useContext: UseContext = <STATE extends object>(
   throw qError(QError_notFoundContext, context.id);
 };
 
-export const resolveContext = <STATE extends object>(
-  context: Context<STATE>,
-  hostElement: QwikElement,
-  rctx?: RenderContext
-): STATE | undefined => {
-  const contextID = context.id;
-  if (rctx) {
-    const contexts = rctx.$localStack$;
-    for (let i = contexts.length - 1; i >= 0; i--) {
-      const ctx = contexts[i];
-      hostElement = ctx.$element$;
-      if (ctx.$contexts$) {
-        const found = ctx.$contexts$.get(contextID);
-        if (found) {
-          return found;
-        }
-        if (ctx.$contexts$.get('_') === true) {
-          break;
-        }
-      }
-    }
-  }
-  if ((hostElement as any).closest) {
-    const value = queryContextFromDom(hostElement, contextID);
-    if (value !== undefined) {
-      return value;
-    }
-  }
-  return undefined;
-};
-
-export const queryContextFromDom = (hostElement: QwikElement, contextId: string) => {
-  let element: QwikElement | null = hostElement;
-  while (element) {
-    let node: Node | VirtualElement | null = element;
-    let virtual: VirtualElement | null;
-    while (node && (virtual = findVirtual(node))) {
-      const contexts = tryGetContext(virtual)?.$contexts$;
-      if (contexts) {
-        if (contexts.has(contextId)) {
-          return contexts.get(contextId);
-        }
-      }
-      node = virtual;
-    }
-    element = element.parentElement;
-  }
-  return undefined;
-};
-
-export const findVirtual = (el: Node | VirtualElement) => {
-  let node: Node | VirtualElement | null = el;
+/** Find a wrapping Virtual component in the DOM */
+const findParentCtx = (el: QwikElement | null, containerState: ContainerState) => {
+  let node = el;
   let stack = 1;
-  while ((node = node.previousSibling)) {
-    if (isComment(node)) {
-      if (node.data === '/qv') {
-        stack++;
-      } else if (node.data.startsWith('qv ')) {
-        stack--;
-        if (stack === 0) {
-          return getVirtualElement(node)!;
+  while (node && !node.hasAttribute?.('q:container')) {
+    // Walk the siblings backwards, each comment might be the Virtual wrapper component
+    while ((node = node.previousSibling as QwikElement | null)) {
+      if (isComment(node)) {
+        const virtual = (node as any)[VIRTUAL_SYMBOL] as VirtualElement;
+        if (virtual) {
+          const qtx = (virtual as any)[Q_CTX] as QContext | undefined;
+          if (node === virtual.open) {
+            // We started inside this node so this is our parent
+            return qtx ?? getContext(virtual, containerState);
+          }
+          // This is a sibling, check if it knows our parent
+          if (qtx?.$parentCtx$) {
+            return qtx.$parentCtx$;
+          }
+          // Skip over this entire virtual sibling
+          node = virtual;
+          continue;
+        }
+        if (node.data === '/qv') {
+          stack++;
+        } else if (node.data.startsWith('qv ')) {
+          stack--;
+          if (stack === 0) {
+            return getContext(getVirtualElement(node)!, containerState);
+          }
         }
       }
     }
+    // No more siblings, walk up the DOM tree. The parent will never be a Virtual component.
+    node = el!.parentElement;
+    el = node;
   }
   return null;
 };
 
-export const validateContext = (context: Context<any>) => {
+const getParentProvider = (ctx: QContext, containerState: ContainerState): QContext | null => {
+  // `null` means there's no parent, `undefined` means we don't know yet.
+  if (ctx.$parentCtx$ === undefined) {
+    // Not fully resumed container, find context from DOM
+    // We cannot recover $realParentCtx$ from this but that's fine because we don't need to pause on the client
+    ctx.$parentCtx$ = findParentCtx(ctx.$element$, containerState);
+  }
+  /**
+   * Note, the parentCtx is used during pause to to get the immediate parent, so we can't shortcut
+   * the search for $contexts$ here. If that turns out to be needed, it needs to be cached in a
+   * separate property.
+   */
+  return ctx.$parentCtx$;
+};
+
+export const resolveContext = <STATE>(
+  context: ContextId<STATE>,
+  hostCtx: QContext,
+  containerState: ContainerState
+): STATE | undefined => {
+  const contextID = context.id;
+  if (!hostCtx) {
+    return;
+  }
+  let ctx = hostCtx;
+  while (ctx) {
+    const found = ctx.$contexts$?.get(contextID);
+    if (found) {
+      return found;
+    }
+    ctx = getParentProvider(ctx, containerState)!;
+  }
+};
+
+export const validateContext = (context: ContextId<any>) => {
   if (!isObject(context) || typeof context.id !== 'string' || context.id.length === 0) {
     throw qError(QError_invalidContext, context);
   }

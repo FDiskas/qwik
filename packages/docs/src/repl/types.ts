@@ -1,10 +1,10 @@
+import type { NoSerialize, Signal } from '@builder.io/qwik';
 import type {
   Diagnostic,
   QwikManifest,
   QwikRollupPluginOptions,
   TransformModule,
 } from '@builder.io/qwik/optimizer';
-import type { NoSerialize } from '@builder.io/qwik';
 
 export interface ReplAppInput {
   buildId: number;
@@ -12,14 +12,17 @@ export interface ReplAppInput {
   version: string;
   buildMode: 'development' | 'production';
   entryStrategy: string;
+  debug?: boolean;
 }
 
+export type PkgUrls = { [pkgName: string]: { [path: string]: string; version: string } };
 export interface ReplInputOptions extends Omit<QwikRollupPluginOptions, 'srcDir'> {
   buildId: number;
   srcInputs: ReplModuleInput[];
   version: string;
   buildMode: 'development' | 'production';
-  serverUrl: string;
+  serverUrl: string | undefined;
+  deps: PkgUrls;
 }
 
 export interface ReplStore {
@@ -38,7 +41,7 @@ export interface ReplStore {
   enableSsrOutput: boolean;
   ssrBuild: boolean;
   debug: boolean;
-  serverUrl: string;
+  serverUrl?: string;
   serverWindow: NoSerialize<MessageEventSource> | null;
   versions: string[];
   events: ReplEvent[];
@@ -55,6 +58,7 @@ export interface ReplModuleOutput {
   path: string;
   code: string;
   size?: string;
+  shorten?: Signal<boolean>;
 }
 
 export interface ReplMessageBase {

@@ -1,33 +1,42 @@
 import { verifySerializable } from '../state/common';
-import { getContext } from '../state/context';
-import { qDev } from '../util/qdev';
-import { RenderInvokeContext, useInvokeContext } from './use-core';
+import { getContext, type QContext } from '../state/context';
+import { qDev, qSerialize } from '../util/qdev';
+import { type RenderInvokeContext, useInvokeContext } from './use-core';
 
 export interface SequentialScope<T> {
-  readonly get: T | undefined;
+  /** The currently stored data for the hook that calls this */
+  readonly val: T | undefined;
+  /** Store new data for the hook that calls this */
   readonly set: (v: T) => T;
+  /** Index of the hook */
   readonly i: number;
-  readonly ctx: RenderInvokeContext;
+  readonly iCtx: RenderInvokeContext;
+  readonly elCtx: QContext;
 }
 
+/**
+ * @internal
+ * The storage provider for hooks. Each invocation increases index i. Data is stored in an array.
+ */
 export const useSequentialScope = <T>(): SequentialScope<T> => {
-  const ctx = useInvokeContext();
-  const i = ctx.$seq$;
-  const hostElement = ctx.$hostElement$;
-  const elCtx = getContext(hostElement);
-  const seq = elCtx.$seq$ ? elCtx.$seq$ : (elCtx.$seq$ = []);
+  const iCtx = useInvokeContext();
+  const hostElement = iCtx.$hostElement$;
+  const elCtx = getContext(hostElement, iCtx.$renderCtx$.$static$.$containerState$);
+  const seq = (elCtx.$seq$ ||= []);
+  const i = iCtx.$i$++;
 
-  ctx.$seq$++;
   const set = (value: T) => {
-    if (qDev) {
+    if (qDev && qSerialize) {
       verifySerializable(value);
     }
     return (seq[i] = value);
   };
+
   return {
-    get: seq[i],
+    val: seq[i],
     set,
     i,
-    ctx,
+    iCtx,
+    elCtx,
   };
 };

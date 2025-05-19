@@ -1,6 +1,8 @@
 ---
 source: packages/qwik/src/optimizer/core/src/test.rs
+assertion_line: 1232
 expression: output
+snapshot_kind: text
 ---
 ==INPUT==
 
@@ -24,8 +26,8 @@ export const App = component$((props) => {
 
 ============================= test.js ==
 
-import { _wrapSignal } from "@builder.io/qwik";
-import { jsx as _jsx } from "@builder.io/qwik/jsx-runtime";
+import { _fnSignal } from "@builder.io/qwik";
+import { _jsxQ } from "@builder.io/qwik";
 import { useStore, useEffect } from '@builder.io/qwik';
 export const useMemo$ = (qrt)=>{
     useEffect(qrt);
@@ -37,13 +39,13 @@ export const App = component$((props)=>{
     useMemo$(()=>{
         console.log(state.count);
     });
-    return $(()=>/*#__PURE__*/ _jsx("div", {
-            children: _wrapSignal(state, "count")
-        }));
+    return $(()=>/*#__PURE__*/ _jsxQ("div", null, null, _fnSignal((p0)=>p0.count, [
+            state
+        ], "p0.count"), 3, "u6_0"));
 });
 
 
-Some("{\"version\":3,\"sources\":[\"/user/qwik/src/test.tsx\"],\"names\":[],\"mappings\":\"AACA;;AAAA,SAAiD,QAAQ,EAAQ,SAAS,QAAQ,kBAAkB,CAAC;AAGrG,OAAO,MAAM,QAAQ,GAAG,CAAC,GAAG,GAAK;IAC7B,SAAS,CAAC,GAAG,CAAC,CAAC;AACnB,CAAC,CAAC;AAEF,OAAO,MAAM,GAAG,GAAG,UAAU,CAAC,CAAC,KAAK,GAAK;IACrC,MAAM,KAAK,GAAG,QAAQ,CAAC;QAAC,KAAK,EAAE,CAAC;KAAC,CAAC,AAAC;IACnC,QAAQ,CAAC,IAAM;QACX,OAAO,CAAC,GAAG,CAAC,KAAK,CAAC,KAAK,CAAC,CAAC;IAC7B,CAAC,CAAC,CAAC;IACH,OAAO,CAAC,CAAC,kBACL,KAAC,KAAG;kCAAE,KAAK;UAAa,AAC3B,CAAC,CAAC;AACP,CAAC,CAAC,CAAC\"}")
+Some("{\"version\":3,\"sources\":[\"/user/qwik/src/test.tsx\"],\"names\":[],\"mappings\":\";;AACA,SAAiD,QAAQ,EAAQ,SAAS,QAAQ,mBAAmB;AAGrG,OAAO,MAAM,WAAW,CAAC;IACrB,UAAU;AACd,EAAE;AAEF,OAAO,MAAM,MAAM,WAAW,CAAC;IAC3B,MAAM,QAAQ,SAAS;QAAC,OAAO;IAAC;IAChC,SAAS;QACL,QAAQ,GAAG,CAAC,MAAM,KAAK;IAC3B;IACA,OAAO,EAAE,kBACL,MAAC,mCAAK,GAAM,KAAK;;;AAEzB,GAAG\"}")
 == DIAGNOSTICS ==
 
 [

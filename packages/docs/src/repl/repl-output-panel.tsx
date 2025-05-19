@@ -1,4 +1,4 @@
-import { mutable } from '@builder.io/qwik';
+import { component$ } from '@builder.io/qwik';
 import { CodeBlock } from '../components/code-block/code-block';
 import { ReplOutputModules } from './repl-output-modules';
 import { ReplOutputSymbols } from './repl-output-symbols';
@@ -6,7 +6,7 @@ import { ReplTabButton } from './repl-tab-button';
 import { ReplTabButtons } from './repl-tab-buttons';
 import type { ReplAppInput, ReplStore } from './types';
 
-export const ReplOutputPanel = ({ input, store }: ReplOutputPanelProps) => {
+export const ReplOutputPanel = component$(({ input, store }: ReplOutputPanelProps) => {
   const diagnosticsLen = store.diagnostics.length + store.monacoDiagnostics.length;
 
   return (
@@ -62,7 +62,7 @@ export const ReplOutputPanel = ({ input, store }: ReplOutputPanelProps) => {
 
         <ReplTabButton
           text={`Diagnostics${diagnosticsLen > 0 ? ` (${diagnosticsLen})` : ``}`}
-          cssClass={{ 'repl-tab-diagnostics': true }}
+          cssClass={{ 'repl-tab-diagnostics': true, 'has-errors': diagnosticsLen > 0 }}
           isActive={store.selectedOutputPanel === 'diagnostics'}
           onClick$={async () => {
             store.selectedOutputPanel = 'diagnostics';
@@ -97,12 +97,12 @@ export const ReplOutputPanel = ({ input, store }: ReplOutputPanelProps) => {
               />
             </svg>
           ) : null}
-          <iframe class="repl-server" src={store.serverUrl} />
+          {store.serverUrl && <iframe class="repl-server" src={store.serverUrl} />}
         </div>
 
         {store.selectedOutputPanel === 'html' ? (
           <div class="output-result output-html">
-            <CodeBlock language="markup" code={store.html} theme="light" />
+            <CodeBlock language="markup" code={store.html} />
           </div>
         ) : null}
 
@@ -123,14 +123,16 @@ export const ReplOutputPanel = ({ input, store }: ReplOutputPanelProps) => {
             {diagnosticsLen === 0 ? (
               <p class="no-diagnostics">- No Reported Diagnostics -</p>
             ) : (
-              [...store.diagnostics, ...store.monacoDiagnostics].map((d) => <p>{d.message}</p>)
+              [...store.diagnostics, ...store.monacoDiagnostics].map((d, key) => (
+                <p key={key}>{d.message}</p>
+              ))
             )}
           </div>
         ) : null}
       </div>
     </div>
   );
-};
+});
 
 interface ReplOutputPanelProps {
   input: ReplAppInput;

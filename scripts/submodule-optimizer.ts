@@ -1,26 +1,21 @@
-import { build, BuildOptions } from 'esbuild';
+import { build, type BuildOptions } from 'esbuild';
 import {
   access,
-  BuildConfig,
+  type BuildConfig,
   getBanner,
-  injectGlobalThisPoly,
   nodeTarget,
   readFile,
   target,
-  watcher,
   writeFile,
 } from './util';
 import { join } from 'node:path';
 import { minify } from 'terser';
 import { platformArchTriples } from '@napi-rs/triples';
-import { readPackageJson } from './package-json';
-import { watch } from 'rollup';
-import { constants } from 'node:fs';
+import { constants, existsSync } from 'node:fs';
 import { inlineQwikScriptsEsBuild } from './submodule-qwikloader';
+import RawPlugin from 'esbuild-plugin-raw';
 
-/**
- * Builds @builder.io/optimizer
- */
+/** Builds @builder.io/optimizer */
 export async function submoduleOptimizer(config: BuildConfig) {
   const submodule = 'optimizer';
 
@@ -28,16 +23,17 @@ export async function submoduleOptimizer(config: BuildConfig) {
 
   async function buildOptimizer() {
     const opts: BuildOptions = {
-      entryPoints: [join(config.srcDir, submodule, 'src', 'index.ts')],
+      entryPoints: [join(config.srcQwikDir, submodule, 'src', 'index.ts')],
       entryNames: 'optimizer',
-      outdir: config.distPkgDir,
+      outdir: config.distQwikPkgDir,
       bundle: true,
       sourcemap: false,
+      platform: 'node',
       target,
       external: [
-        /* no nodejs built-in externals allowed! */
+        /* no Node.js built-in externals allowed! */
+        'espree',
       ],
-      incremental: config.watch,
     };
 
     const qwikloaderScripts = await inlineQwikScriptsEsBuild(config);
@@ -53,13 +49,10 @@ export async function submoduleOptimizer(config: BuildConfig) {
         'globalThis.QWIK_VERSION': JSON.stringify(config.distVersion),
         ...qwikloaderScripts,
       },
-      watch: watcher(config, submodule),
+      plugins: [RawPlugin()],
     });
 
-    const cjsBanner = [
-      injectGlobalThisPoly(),
-      `globalThis.qwikOptimizer = (function (module) {`,
-    ].join('\n');
+    const cjsBanner = [`globalThis.qwikOptimizer = (function (module) {`].join('\n');
 
     const cjsBuild = build({
       ...opts,
@@ -75,16 +68,15 @@ export async function submoduleOptimizer(config: BuildConfig) {
         'globalThis.QWIK_VERSION': JSON.stringify(config.distVersion),
         ...qwikloaderScripts,
       },
-      watch: watcher(config),
-      platform: 'node',
       target: nodeTarget,
+      plugins: [RawPlugin()],
     });
 
-    const [esm, cjs] = await Promise.all([esmBuild, cjsBuild]);
+    await Promise.all([esmBuild, cjsBuild]);
 
     if (!config.dev) {
-      const esmDist = join(config.distPkgDir, 'optimizer.mjs');
-      const cjsDist = join(config.distPkgDir, 'optimizer.cjs');
+      const esmDist = join(config.distQwikPkgDir, 'optimizer.mjs');
+      const cjsDist = join(config.distQwikPkgDir, 'optimizer.cjs');
 
       await Promise.all(
         [esmDist, cjsDist].map(async (p) => {
@@ -122,16 +114,6 @@ export async function submoduleOptimizer(config: BuildConfig) {
     }
 
     console.log('🐹', submodule);
-
-    if (config.watch) {
-      const watcher = watch({ input: join(config.distPkgDir, 'prefetch.debug.js') });
-      watcher.on('change', () => {
-        esm.stop!();
-        cjs.stop!();
-        watcher.close();
-        setTimeout(buildOptimizer);
-      });
-    }
   }
 
   await Promise.all([buildOptimizer()]);
@@ -143,11 +125,6 @@ async function generatePlatformBindingsData(config: BuildConfig) {
   // - node_modules/@node-rs/helper/lib/loader.js
   // - node_modules/@napi-rs/triples/index.js
 
-  const pkg = await readPackageJson(join(config.packagesDir, 'qwik'));
-  const bindingFiles = pkg
-    .files!.filter((f) => f.startsWith('bindings/'))
-    .map((f) => f.replace('bindings/', ''));
-
   const qwikArchTriples: typeof platformArchTriples = {};
 
   for (const platformName in platformArchTriples) {
@@ -156,7 +133,7 @@ async function generatePlatformBindingsData(config: BuildConfig) {
       const triples = platform[archName];
       for (const triple of triples) {
         const qwikArchABI = `qwik.${triple.platformArchABI}.node`;
-        if (bindingFiles.includes(qwikArchABI)) {
+        if (existsSync(join(config.distBindingsDir, qwikArchABI))) {
           const qwikTriple = {
             platform: triple.platform,
             arch: triple.arch,
@@ -181,7 +158,7 @@ async function generatePlatformBindingsData(config: BuildConfig) {
 
   const code = c.join('\n') + '\n';
 
-  const platformBindingPath = join(config.srcDir, 'optimizer', 'src', 'qwik-binding-map.ts');
+  const platformBindingPath = join(config.srcQwikDir, 'optimizer', 'src', 'qwik-binding-map.ts');
   let isWritable;
   try {
     await access(platformBindingPath, constants.W_OK);

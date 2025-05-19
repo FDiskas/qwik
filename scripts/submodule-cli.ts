@@ -1,17 +1,16 @@
 import { build } from 'esbuild';
+import { existsSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { copyStartersDir } from './create-qwik-cli';
-import { BuildConfig, copyFile, getBanner, nodeTarget, watcher } from './util';
+import { type BuildConfig, copyDir, getBanner, nodeTarget } from './util';
 
-/**
- * Builds @builder.io/qwik/cli
- */
+/** Builds @builder.io/qwik/cli */
 export async function submoduleCli(config: BuildConfig) {
   const submodule = 'cli';
 
   await build({
-    entryPoints: [join(config.srcDir, submodule, 'index.ts')],
-    outfile: join(config.distPkgDir, 'cli.cjs'),
+    entryPoints: [join(config.srcQwikDir, submodule, 'index.ts')],
+    outfile: join(config.distQwikPkgDir, 'cli.cjs'),
     format: 'cjs',
     platform: 'node',
     target: nodeTarget,
@@ -19,7 +18,6 @@ export async function submoduleCli(config: BuildConfig) {
     bundle: true,
     banner: { js: getBanner('@builder.io/qwik/cli', config.distVersion) },
     outExtension: { '.js': '.cjs' },
-    watch: watcher(config, submodule),
     plugins: [
       {
         name: 'colorAlias',
@@ -27,6 +25,7 @@ export async function submoduleCli(config: BuildConfig) {
           build.onResolve({ filter: /^chalk$/ }, async (args) => {
             const result = await build.resolve('kleur', {
               resolveDir: args.resolveDir,
+              kind: 'import-statement',
             });
             if (result.errors.length > 0) {
               return { errors: result.errors };
@@ -36,16 +35,23 @@ export async function submoduleCli(config: BuildConfig) {
         },
       },
     ],
-    external: ['prettier', 'typescript'],
+    external: ['prettier', 'typescript', 'ts-morph', 'semver', 'ignore'],
     define: {
       'globalThis.CODE_MOD': 'true',
       'globalThis.QWIK_VERSION': JSON.stringify(config.distVersion),
     },
   });
 
-  await copyFile(join(config.srcDir, submodule, 'qwik.cjs'), join(config.distPkgDir, 'qwik.cjs'));
+  await copyStartersDir(config, config.distQwikPkgDir, ['features', 'adapters']);
 
-  await copyStartersDir(config, config.distPkgDir, ['features', 'adaptors']);
+  const tmplSrc = join(config.startersDir, 'templates');
+  const tmplDist = join(config.distQwikPkgDir, 'templates');
+
+  if (existsSync(tmplDist)) {
+    rmSync(tmplDist, { recursive: true });
+  }
+
+  await copyDir(config, tmplSrc, tmplDist);
 
   console.log('📠', submodule);
 }

@@ -1,37 +1,216 @@
+import { $, component$, useContext, useOnDocument, useSignal, useStyles$ } from '@builder.io/qwik';
 import { useContent, useLocation } from '@builder.io/qwik-city';
-import { component$, useStyles$ } from '@builder.io/qwik';
+import { GlobalStore } from '../../context';
+import { AlertIcon } from '../svgs/alert-icon';
 import { ChatIcon } from '../svgs/chat-icon';
+import { EditIcon } from '../svgs/edit-icon';
 import { GithubLogo } from '../svgs/github-logo';
 import { TwitterLogo } from '../svgs/twitter-logo';
 import styles from './on-this-page.css?inline';
-import { EditIcon } from '../svgs/edit-icon';
+
+const QWIK_GROUP = [
+  'components',
+  'concepts',
+  'faq',
+  'getting-started',
+  'index',
+  'deprecated-features',
+];
+
+const QWIK_ADVANCED_GROUP = [
+  'containers',
+  'custom-build-dir',
+  'dollar',
+  'eslint',
+  'library',
+  'optimizer',
+  'modules-prefetching',
+  'qrl',
+  'qwikloader',
+  'vite',
+];
+
+const QWIKCITY_GROUP = [
+  'action',
+  'api',
+  'caching',
+  'endpoints',
+  'error-handling',
+  'html-attributes',
+  'layout',
+  'middleware',
+  'pages',
+  'project-structure',
+  'qwikcity',
+  're-exporting-loaders',
+  'route-loader',
+  'routing',
+  'server$',
+  'validator',
+];
+
+const QWIKCITY_ADVANCED_GROUP = [
+  'complex-forms',
+  'content-security-policy',
+  'menu',
+  'plugins',
+  'request-handling',
+  'routing',
+  'sitemaps',
+  'speculative-module-fetching',
+  'static-assets',
+];
+
+const makeEditPageUrl = (url: string): string => {
+  const segments = url.split('/').filter((part) => part !== '');
+  if (segments[0] !== 'docs') {
+    return url;
+  }
+
+  let group = '';
+  if (segments.length === 1) {
+    // Handle root /docs path - it maps to the qwik overview page
+    return 'docs/(qwik)';
+  }
+
+  if (segments[1] == 'advanced') {
+    if (QWIK_ADVANCED_GROUP.includes(segments[2])) {
+      group = '(qwik)';
+    } else if (QWIKCITY_ADVANCED_GROUP.includes(segments[2])) {
+      group = '(qwikcity)';
+    }
+  } else if (QWIK_GROUP.includes(segments[1])) {
+    group = '(qwik)';
+  } else if (QWIKCITY_GROUP.includes(segments[1])) {
+    group = '(qwikcity)';
+  }
+
+  if (group) {
+    segments.splice(1, 0, group);
+  }
+
+  // Handle special cases for components and concepts which have a different structure
+  if (segments.includes('components') || segments.includes('concepts')) {
+    // Check if this is a subpage under components or concepts
+    const componentIndex = segments.indexOf('components');
+    const conceptIndex = segments.indexOf('concepts');
+    const index = componentIndex !== -1 ? componentIndex : conceptIndex;
+
+    // If there's a subpage (like components/overview or concepts/resumable)
+    if (index !== -1 && index + 1 >= segments.length) {
+      // These are directory paths without subpaths, map to their overview pages
+      if (componentIndex !== -1) {
+        return 'docs/(qwik)/components/overview';
+      } else if (conceptIndex !== -1) {
+        return 'docs/(qwik)/concepts/think-qwik';
+      }
+    }
+  }
+
+  return segments.join('/');
+};
 
 export const OnThisPage = component$(() => {
   useStyles$(styles);
-
+  const theme = useContext(GlobalStore);
   const { headings } = useContent();
-  const contentHeadings = headings?.filter((h) => h.level === 2 || h.level === 3) || [];
+  const contentHeadings = headings?.filter((h) => h.level <= 3) || [];
 
-  const { pathname } = useLocation();
-  const editUrl = `https://github.com/BuilderIO/qwik/edit/main/packages/docs/src/routes${pathname}index.mdx`;
+  const { url } = useLocation();
+
+  const githubEditRoute = makeEditPageUrl(url.pathname);
+
+  const editUrl = `https://github.com/QwikDev/qwik/edit/main/packages/docs/src/routes/${githubEditRoute}/index.mdx`;
+
+  const OnThisPageMore = [
+    {
+      href: editUrl,
+      text: 'Edit this Page',
+      icon: EditIcon,
+    },
+    {
+      href: 'https://github.com/QwikDev/qwik/issues/new/choose',
+      text: 'Create an issue',
+      icon: AlertIcon,
+    },
+    {
+      href: 'https://qwik.dev/chat',
+      text: 'Join our community',
+      icon: ChatIcon,
+    },
+    {
+      href: 'https://github.com/QwikDev/qwik',
+      text: 'GitHub',
+      icon: GithubLogo,
+    },
+    {
+      href: 'https://twitter.com/QwikDev',
+      text: '@QwikDev',
+      icon: TwitterLogo,
+    },
+  ];
+
+  const useActiveItem = (itemIds: string[]) => {
+    const activeId = useSignal<string | null>(null);
+    useOnDocument(
+      'scroll',
+      $(() => {
+        const observer = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((entry) => {
+              if (entry.isIntersecting) {
+                activeId.value = entry.target.id;
+              }
+            });
+          },
+          { rootMargin: '0% 0% -80% 0%' }
+        );
+
+        itemIds.forEach((id) => {
+          const element = document.getElementById(id);
+          if (element) {
+            observer.observe(element);
+          }
+        });
+
+        return () => {
+          itemIds.forEach((id) => {
+            const element = document.getElementById(id);
+            if (element) {
+              observer.unobserve(element);
+            }
+          });
+        };
+      })
+    );
+
+    return activeId;
+  };
+
+  const activeId = useActiveItem(contentHeadings.map((h) => h.id));
 
   return (
-    <aside class="on-this-page fixed text-sm z-20 bottom-0 right-[max(0px,calc(50%-42rem))] overflow-y-auto hidden xl:block xl:w-[16rem] xl:top-[9rem]">
+    <aside class="on-this-page text-sm overflow-y-auto hidden xl:block">
       {contentHeadings.length > 0 ? (
         <>
           <h6>On This Page</h6>
-          <ul>
+          <ul class="px-2 font-medium text-[var(--interactive-text-color)]">
             {contentHeadings.map((h) => (
-              <li key={h.id}>
-                <a
-                  href={`#${h.id}`}
-                  class={{
-                    block: true,
-                    indent: h.level > 2,
-                  }}
-                >
-                  {h.text}
-                </a>
+              <li
+                key={h.id}
+                class={`${
+                  theme.theme === 'light'
+                    ? 'hover:bg-[var(--qwik-light-blue)]'
+                    : 'hover:bg-[var(--on-this-page-hover-bg-color)]'
+                }`}
+              >
+                {activeId.value === h.id ? (
+                  <span class="on-this-page-item">{h.text}</span>
+                ) : (
+                  <a href={`#${h.id}`} class={`${h.level > 2 ? 'ml-0' : null} on-this-page-item`}>
+                    {h.text}
+                  </a>
+                )}
               </li>
             ))}
           </ul>
@@ -39,60 +218,24 @@ export const OnThisPage = component$(() => {
       ) : null}
 
       <h6>More</h6>
-      <ul>
-        <li>
-          <a href={editUrl} target="_blank">
-            <EditIcon width={22} height={22} />
-            <span>Edit this page</span>
-          </a>
-        </li>
-        <li>
-          <a href="https://github.com/BuilderIO/qwik/issues/new/choose" target="_blank">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="21"
-              height="21"
-              aria-hidden="true"
-              viewBox="0 0 512 512"
+      <ul class="px-2 font-medium text-[var(--interactive-text-color)]">
+        {OnThisPageMore.map((el, index) => {
+          return (
+            <li
+              class={`${
+                theme.theme === 'light'
+                  ? 'hover:bg-[var(--qwik-light-blue)]'
+                  : 'hover:bg-[var(--on-this-page-hover-bg-color)]'
+              } rounded-lg`}
+              key={`more-items-on-this-page-${index}`}
             >
-              <path
-                d="M448 256c0-106-86-192-192-192S64 150 64 256s86 192 192 192 192-86 192-192z"
-                fill="none"
-                stroke="currentColor"
-                stroke-miterlimit="10"
-                stroke-width="32"
-              />
-              <path
-                d="M250.26 166.05L256 288l5.73-121.95a5.74 5.74 0 00-5.79-6h0a5.74 5.74 0 00-5.68 6z"
-                fill="none"
-                stroke="currentColor"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="32"
-              />
-              <path d="M256 367.91a20 20 0 1120-20 20 20 0 01-20 20z" fill="currentColor" />
-            </svg>
-            <span>Create an issue</span>
-          </a>
-        </li>
-        <li>
-          <a href="https://qwik.builder.io/chat" target="_blank" rel="nofollow noopener">
-            <ChatIcon width={20} height={20} />
-            <span>Join our community</span>
-          </a>
-        </li>
-        <li>
-          <a href="https://github.com/BuilderIO/qwik" target="_blank" rel="nofollow noopener">
-            <GithubLogo width={20} height={20} />
-            <span>Github</span>
-          </a>
-        </li>
-        <li>
-          <a href="https://twitter.com/QwikDev" target="_blank" rel="nofollow noopener">
-            <TwitterLogo width={20} height={20} />
-            <span>@QwikDev</span>
-          </a>
-        </li>
+              <a class="more-item" href={el.href} rel="noopener" target="_blank">
+                <el.icon width={20} height={20} />
+                <span>{el.text}</span>
+              </a>
+            </li>
+          );
+        })}
       </ul>
     </aside>
   );

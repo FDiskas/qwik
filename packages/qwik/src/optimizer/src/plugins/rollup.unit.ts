@@ -1,13 +1,11 @@
 import path, { resolve } from 'node:path';
 import { qwikRollup } from './rollup';
-import type { InputOptions, OutputOptions } from 'rollup';
+import type { Rollup } from 'vite';
 import type { OptimizerOptions } from '../types';
 import type { NormalizedQwikPluginOptions } from './plugin';
-import { suite } from 'uvu';
-import { equal } from 'uvu/assert';
+import { assert, test } from 'vitest';
 import { normalizePath } from '../../../testing/util';
 
-const rollup = suite('rollup');
 const cwd = process.cwd();
 
 function mockOptimizerOptions(): OptimizerOptions {
@@ -24,77 +22,77 @@ function mockOptimizerOptions(): OptimizerOptions {
   };
 }
 
-rollup('rollup default input options, client', async () => {
+test('rollup default input options, client', async () => {
   const initOpts = {
     optimizerOptions: mockOptimizerOptions(),
   };
   const plugin = qwikRollup(initOpts);
-  const rollupInputOpts: InputOptions = await plugin.options!({});
+  const rollupInputOpts: Rollup.InputOptions = await plugin.options!({});
 
-  equal(typeof rollupInputOpts.onwarn, 'function');
-  equal(rollupInputOpts.input, [normalizePath(resolve(cwd, 'src', 'root.tsx'))]);
+  assert.deepEqual(typeof rollupInputOpts.onwarn, 'function');
+  assert.deepEqual(rollupInputOpts.input, [normalizePath(resolve(cwd, 'src', 'root'))]);
 });
 
-rollup('rollup default input options, ssr', async () => {
+test('rollup default input options, ssr', async () => {
   const initOpts = {
     optimizerOptions: mockOptimizerOptions(),
     target: 'ssr',
   } as any;
   const plugin = qwikRollup(initOpts);
-  const rollupInputOpts: InputOptions = await plugin.options!({});
+  const rollupInputOpts: Rollup.InputOptions = await plugin.options!({});
   const opts: NormalizedQwikPluginOptions = plugin.api.getOptions();
 
-  equal(typeof rollupInputOpts.onwarn, 'function');
-  equal(rollupInputOpts.treeshake, false);
-  equal(rollupInputOpts.input, [normalizePath(resolve(cwd, 'src', 'entry.ssr.tsx'))]);
-  equal(opts.input, [normalizePath(resolve(cwd, 'src', 'entry.ssr.tsx'))]);
+  assert.deepEqual(typeof rollupInputOpts.onwarn, 'function');
+  assert.deepEqual(rollupInputOpts.treeshake, undefined);
+  assert.deepEqual(rollupInputOpts.input, [normalizePath(resolve(cwd, 'src', 'entry.ssr'))]);
+  assert.deepEqual(opts.input, [normalizePath(resolve(cwd, 'src', 'entry.ssr'))]);
 });
 
-rollup('rollup default set input options, ssr', async () => {
+test('rollup default set input options, ssr', async () => {
   const initOpts = {
     optimizerOptions: mockOptimizerOptions(),
     target: 'ssr',
   } as any;
   const plugin = qwikRollup(initOpts);
-  const rollupInputOpts: InputOptions = await plugin.options!({
+  const rollupInputOpts: Rollup.InputOptions = await plugin.options!({
     input: normalizePath(resolve(cwd, 'src', 'my.ssr.tsx')),
   });
   const opts: NormalizedQwikPluginOptions = plugin.api.getOptions();
 
-  equal(typeof rollupInputOpts.onwarn, 'function');
-  equal(rollupInputOpts.treeshake, false);
-  equal(rollupInputOpts.input, normalizePath(resolve(cwd, 'src', 'my.ssr.tsx')));
-  equal(opts.input, [normalizePath(resolve(cwd, 'src', 'my.ssr.tsx'))]);
+  assert.deepEqual(typeof rollupInputOpts.onwarn, 'function');
+  assert.deepEqual(rollupInputOpts.treeshake, undefined);
+  assert.deepEqual(rollupInputOpts.input, normalizePath(resolve(cwd, 'src', 'my.ssr.tsx')));
+  assert.deepEqual(opts.input, [normalizePath(resolve(cwd, 'src', 'my.ssr.tsx'))]);
 });
 
-rollup('rollup default output options, client', async () => {
+test('rollup default output options, client', async () => {
   const initOpts = {
     optimizerOptions: mockOptimizerOptions(),
   } as any;
   const plugin = qwikRollup(initOpts);
   await plugin.options!({});
-  const rollupOutputOpts: OutputOptions = await plugin.outputOptions!({});
+  const rollupOutputOpts: Rollup.OutputOptions = await plugin.outputOptions!({});
 
-  equal(rollupOutputOpts.dir, normalizePath(resolve(cwd, 'dist')));
-  equal(rollupOutputOpts.format, 'es');
+  assert.deepEqual(rollupOutputOpts.dir, normalizePath(resolve(cwd, 'dist')));
+  assert.deepEqual(rollupOutputOpts.format, 'es');
 });
 
-rollup('rollup default output options, ssr', async () => {
+test('rollup default output options, ssr', async () => {
   const initOpts = {
     optimizerOptions: mockOptimizerOptions(),
     target: 'ssr',
   } as any;
   const plugin = qwikRollup(initOpts);
   await plugin.options!({});
-  const rollupOutputOpts: OutputOptions = await plugin.outputOptions!({
+  const rollupOutputOpts: Rollup.OutputOptions = await plugin.outputOptions!({
     format: 'cjs',
   });
 
-  equal(rollupOutputOpts.dir, normalizePath(resolve(cwd, 'server')));
-  equal(rollupOutputOpts.exports, 'auto');
+  assert.deepEqual(rollupOutputOpts.dir, normalizePath(resolve(cwd, 'server')));
+  assert.deepEqual(rollupOutputOpts.exports, 'auto');
 });
 
-rollup('rollup input, default', async () => {
+test('rollup input, default', async () => {
   const initOpts = {
     optimizerOptions: mockOptimizerOptions(),
   } as any;
@@ -102,15 +100,14 @@ rollup('rollup input, default', async () => {
   await plugin.options!({});
 
   const opts: NormalizedQwikPluginOptions = plugin.api.getOptions();
-  equal(opts.target, 'client');
-  equal(opts.buildMode, 'development');
-  equal(opts.entryStrategy, { type: 'hook' });
-  equal(opts.forceFullBuild, true);
-  equal(opts.rootDir, normalizePath(cwd));
-  equal(opts.srcDir, normalizePath(resolve(cwd, 'src')));
+  assert.deepEqual(opts.target, 'client');
+  assert.deepEqual(opts.buildMode, 'development');
+  assert.deepEqual(opts.entryStrategy, { type: 'segment' });
+  assert.deepEqual(opts.rootDir, normalizePath(cwd));
+  assert.deepEqual(opts.srcDir, normalizePath(resolve(cwd, 'src')));
 });
 
-rollup('rollup input, client default', async () => {
+test('rollup input, client default', async () => {
   const initOpts = {
     optimizerOptions: mockOptimizerOptions(),
     target: 'client',
@@ -119,13 +116,12 @@ rollup('rollup input, client default', async () => {
   await plugin.options!({});
 
   const opts: NormalizedQwikPluginOptions = plugin.api.getOptions();
-  equal(opts.target, 'client');
-  equal(opts.buildMode, 'development');
-  equal(opts.entryStrategy, { type: 'hook' });
-  equal(opts.forceFullBuild, true);
+  assert.deepEqual(opts.target, 'client');
+  assert.deepEqual(opts.buildMode, 'development');
+  assert.deepEqual(opts.entryStrategy, { type: 'segment' });
 });
 
-rollup('rollup input, client/production default', async () => {
+test('rollup input, client/production default', async () => {
   const initOpts = {
     optimizerOptions: mockOptimizerOptions(),
     target: 'client',
@@ -135,13 +131,12 @@ rollup('rollup input, client/production default', async () => {
   await plugin.options!({});
 
   const opts: NormalizedQwikPluginOptions = plugin.api.getOptions();
-  equal(opts.target, 'client');
-  equal(opts.buildMode, 'production');
-  equal(opts.entryStrategy, { type: 'smart' });
-  equal(opts.forceFullBuild, true);
+  assert.deepEqual(opts.target, 'client');
+  assert.deepEqual(opts.buildMode, 'production');
+  assert.deepEqual(opts.entryStrategy, { type: 'smart' });
 });
 
-rollup('rollup input, ssr/development default', async () => {
+test('rollup input, ssr/development default', async () => {
   const initOpts = {
     optimizerOptions: mockOptimizerOptions(),
     target: 'ssr',
@@ -151,13 +146,12 @@ rollup('rollup input, ssr/development default', async () => {
   await plugin.options!({});
 
   const opts: NormalizedQwikPluginOptions = plugin.api.getOptions();
-  equal(opts.target, 'ssr');
-  equal(opts.buildMode, 'development');
-  equal(opts.entryStrategy, { type: 'inline' });
-  equal(opts.forceFullBuild, true);
+  assert.deepEqual(opts.target, 'ssr');
+  assert.deepEqual(opts.buildMode, 'development');
+  assert.deepEqual(opts.entryStrategy, { type: 'hoist' });
 });
 
-rollup('rollup input, ssr/production default', async () => {
+test('rollup input, ssr/production default', async () => {
   const initOpts = {
     optimizerOptions: mockOptimizerOptions(),
     target: 'ssr',
@@ -167,13 +161,12 @@ rollup('rollup input, ssr/production default', async () => {
   await plugin.options!({});
 
   const opts: NormalizedQwikPluginOptions = plugin.api.getOptions();
-  equal(opts.target, 'ssr');
-  equal(opts.buildMode, 'production');
-  equal(opts.entryStrategy, { type: 'inline' });
-  equal(opts.forceFullBuild, true);
+  assert.deepEqual(opts.target, 'ssr');
+  assert.deepEqual(opts.buildMode, 'production');
+  assert.deepEqual(opts.entryStrategy, { type: 'hoist' });
 });
 
-rollup('rollup input, lib/production default', async () => {
+test('rollup input, lib/production default', async () => {
   const initOpts = {
     optimizerOptions: mockOptimizerOptions(),
     target: 'lib',
@@ -183,27 +176,22 @@ rollup('rollup input, lib/production default', async () => {
   await plugin.options!({});
 
   const opts: NormalizedQwikPluginOptions = plugin.api.getOptions();
-  equal(opts.target, 'lib');
-  equal(opts.buildMode, 'development');
-  equal(opts.entryStrategy, { type: 'inline' });
-  equal(opts.forceFullBuild, true);
+  assert.deepEqual(opts.target, 'lib');
+  assert.deepEqual(opts.buildMode, 'development');
+  assert.deepEqual(opts.entryStrategy, { type: 'inline' });
 });
 
-rollup('rollup input, forceFullBuild true', async () => {
+test('rollup input, forceFullBuild true', async () => {
   const initOpts = {
     optimizerOptions: mockOptimizerOptions(),
     target: 'ssr',
-    forceFullBuild: true,
     buildMode: 'development',
   } as any;
   const plugin = qwikRollup(initOpts);
   await plugin.options!({});
 
   const opts: NormalizedQwikPluginOptions = plugin.api.getOptions();
-  equal(opts.target, 'ssr');
-  equal(opts.buildMode, 'development');
-  equal(opts.entryStrategy, { type: 'inline' });
-  equal(opts.forceFullBuild, true);
+  assert.deepEqual(opts.target, 'ssr');
+  assert.deepEqual(opts.buildMode, 'development');
+  assert.deepEqual(opts.entryStrategy, { type: 'hoist' });
 });
-
-rollup.run();

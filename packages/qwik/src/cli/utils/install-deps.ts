@@ -1,74 +1,34 @@
-import color from 'kleur';
+import { bgRed, cyan, red } from 'kleur/colors';
 import fs from 'node:fs';
-import ora from 'ora';
-import os from 'node:os';
 import path from 'node:path';
-import spawn from 'cross-spawn';
-import type { ChildProcess } from 'node:child_process';
+import { log } from '@clack/prompts';
 import type { IntegrationData } from '../types';
+import { runCommand } from './utils';
 
 export function installDeps(pkgManager: string, dir: string) {
-  let installChild: ChildProcess;
-
-  const errorMessage = `\n\n${color.bgRed(
-    `  ${pkgManager} install failed  `
-  )}\n\n  You might need to run "${color.green(
-    `${pkgManager} install`
-  )}" manually inside the root of your project to install the dependencies.\n`;
-  const install = new Promise<void>((resolve) => {
-    try {
-      installChild = spawn(pkgManager, ['install'], {
-        cwd: dir,
-        stdio: 'ignore',
-      });
-
-      installChild.on('error', () => {
-        console.error(errorMessage);
-        resolve();
-      });
-
-      installChild.on('close', (code) => {
-        if (code === 0) {
-          resolve();
-        } else {
-          console.error(errorMessage);
-          resolve();
-        }
-      });
-    } catch (e) {
-      console.error(errorMessage);
-      resolve();
-      //
-    }
-  });
-
-  const abort = async () => {
-    if (installChild) {
-      installChild.kill('SIGINT');
-    }
-  };
-
-  return { abort, install };
+  return runCommand(pkgManager, ['install'], dir);
 }
 
-export function startSpinner(msg: string) {
-  const spinner = ora(msg).start();
-  return spinner;
+export function runInPkg(pkgManager: string, args: string[], cwd: string) {
+  const cmd = pkgManager === 'npm' ? 'npx' : pkgManager;
+  return runCommand(cmd, args, cwd);
 }
 
+/**
+ * This does an initial install of the base dependencies in the background while the install is
+ * running. Afterwards the actual dependencies get added and the package manager re-run
+ */
 export function backgroundInstallDeps(pkgManager: string, baseApp: IntegrationData) {
   const { tmpInstallDir } = setupTmpInstall(baseApp);
 
   const { install, abort } = installDeps(pkgManager, tmpInstallDir);
 
-  const complete = async (runInstall: boolean, outDir: string) => {
+  const complete = async (outDir: string) => {
     let success = false;
 
-    if (runInstall) {
-      const spinner = startSpinner(`Installing ${pkgManager} dependencies...`);
-      try {
-        await install;
-
+    try {
+      const installed = await install;
+      if (installed) {
         const tmpNodeModules = path.join(tmpInstallDir, 'node_modules');
         const appNodeModules = path.join(outDir, 'node_modules');
         await fs.promises.rename(tmpNodeModules, appNodeModules);
@@ -89,34 +49,63 @@ export function backgroundInstallDeps(pkgManager: string, baseApp: IntegrationDa
         } catch (e) {
           //
         }
+        try {
+          await fs.promises.rename(
+            path.join(tmpInstallDir, 'pnpm-lock.yaml'),
+            path.join(outDir, 'pnpm-lock.yaml')
+          );
+        } catch (e) {
+          //
+        }
 
-        spinner.succeed();
         success = true;
-      } catch (e) {
-        spinner.fail();
+        fs.rmSync(tmpInstallDir, { recursive: true });
       }
-    } else {
-      await abort();
+    } catch (e: any) {
+      if (e) {
+        if (e.message) {
+          log.error(red(String(e.message)) + `\n\n`);
+        } else {
+          log.error(red(String(e)) + `\n\n`);
+        }
+      }
+    }
+
+    if (!success) {
+      const errorMessage =
+        `${bgRed(` ${pkgManager} install failed `)}\n` +
+        ` You might need to run ${cyan(
+          `"${pkgManager} install"`
+        )} manually inside the root of the project.\n\n`;
+      log.error(errorMessage);
     }
 
     return success;
   };
 
-  return { abort, complete };
+  const out = {
+    abort: () => abort().finally(() => fs.rmSync(tmpInstallDir, { recursive: true })),
+    complete,
+    success: undefined as boolean | undefined,
+  };
+  install.then((success) => (out.success = success));
+
+  return out;
 }
 
 function setupTmpInstall(baseApp: IntegrationData) {
   const tmpId =
-    'create-qwik-' +
+    '.create-qwik-' +
     Math.round(Math.random() * Number.MAX_SAFE_INTEGER)
       .toString(36)
       .toLowerCase();
-  const tmpInstallDir = path.join(os.tmpdir(), tmpId);
+  // Keep in same mountpoint so renames can move quickly
+  const tmpInstallDir = path.resolve(baseApp.target!, '..', tmpId);
 
   try {
     fs.mkdirSync(tmpInstallDir);
   } catch (e) {
-    console.error(`\n❌ ${color.red(String(e))}\n`);
+    log.error(`❌ ${red(String(e))}`);
   }
 
   const basePkgJson = path.join(baseApp.dir, 'package.json');

@@ -1,6 +1,6 @@
 import { component$, useStore } from '@builder.io/qwik';
 
-export const App = component$(() => {
+export default component$(() => {
   return (
     <>
       <h1>Hello World!</h1>
@@ -9,6 +9,7 @@ export const App = component$(() => {
       Qwik will never download me to the client. I am only rendered on the server.
       <br />
       <button onClick$={() => alert('Hello')}>greet!</button>
+      <hr />
       <Counter />
     </>
   );
@@ -19,9 +20,10 @@ export const Counter = component$(() => {
   return (
     <>
       I am a dynamic component. Qwik will download me only when it is time to re-render me after the
-      user clicks on the <tt>+1</tt> button.
+      user clicks on the <code>+1</code> button.
       <br />
       Current count: {store.count}
+      <br />
       <button onClick$={() => store.count++}>+1</button>
     </>
   );

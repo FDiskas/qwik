@@ -1,10 +1,10 @@
 import {
   component$,
   implicit$FirstArg,
-  NoSerialize,
+  type NoSerialize,
   noSerialize,
-  QRL,
-  useWatch$,
+  type QRL,
+  useTask$,
   SkipRender,
   useSignal,
   Slot,
@@ -12,19 +12,19 @@ import {
   useStylesScoped$,
 } from '@builder.io/qwik';
 
-import { isBrowser, isServer } from '@builder.io/qwik/build';
+import { isBrowser, isServer } from '@builder.io/qwik';
 import type { Root } from 'react-dom/client';
-import type { FunctionComponent } from 'react';
+import type { FunctionComponent as ReactFC } from 'react';
 import * as client from './client';
 import { renderFromServer } from './server-render';
 import { getHostProps, main, mainExactProps, useWakeupSignal } from './slot';
 import type { Internal, QwikifyOptions, QwikifyProps } from './types';
 
-export function qwikifyQrl<PROPS extends {}>(
-  reactCmp$: QRL<FunctionComponent<PROPS & { children?: any }>>,
+export function qwikifyQrl<PROPS extends Record<any, any>>(
+  reactCmp$: QRL<ReactFC<PROPS & { children?: any }>>,
   opts?: QwikifyOptions
 ) {
-  return component$<QwikifyProps<PROPS>>((props) => {
+  return component$((props: QwikifyProps<PROPS>) => {
     const { scopeId } = useStylesScoped$(
       `q-slot{display:none} q-slotc,q-slotc>q-slot{display:contents}`
     );
@@ -35,8 +35,8 @@ export function qwikifyQrl<PROPS extends {}>(
     const hydrationKeys = {};
     const TagName = opts?.tagName ?? ('qwik-react' as any);
 
-    // Watch takes cares of updates and partial hydration
-    useWatch$(async ({ track }) => {
+    // Task takes cares of updates and partial hydration
+    useTask$(async ({ track }) => {
       const trackedProps = track(() => ({ ...props }));
       track(signal);
 
@@ -57,13 +57,17 @@ export function qwikifyQrl<PROPS extends {}>(
         const hostElement = hostRef.value;
         if (hostElement) {
           // hydration
-          root = client.flushSync(() => {
-            return client.hydrateRoot(
-              hostElement,
-              mainExactProps(slotRef.value, scopeId, Cmp, hydrationKeys)
-            );
-          });
-          if (signal.value === false) {
+          if (isClientOnly) {
+            root = client.createRoot(hostElement);
+          } else {
+            root = client.flushSync(() => {
+              return client.hydrateRoot(
+                hostElement,
+                mainExactProps(slotRef.value, scopeId, Cmp, hydrationKeys)
+              );
+            });
+          }
+          if (isClientOnly || signal.value === false) {
             root.render(main(slotRef.value, scopeId, Cmp, trackedProps));
           }
         }
@@ -84,7 +88,7 @@ export function qwikifyQrl<PROPS extends {}>(
         slotRef,
         hydrationKeys
       );
-      return <RenderOnce>{jsx}</RenderOnce>;
+      return <RenderOnce key={2}>{jsx}</RenderOnce>;
     }
 
     return (
@@ -92,13 +96,17 @@ export function qwikifyQrl<PROPS extends {}>(
         <TagName
           {...getHostProps(props)}
           ref={(el: Element) => {
-            queueMicrotask(() => {
-              const internalData = internalState.value;
-              if (internalData && !internalData.root) {
-                const root = (internalData.root = client.createRoot(el));
-                root.render(main(slotRef.value, scopeId, internalData.cmp, props));
-              }
-            });
+            if (isBrowser) {
+              queueMicrotask(() => {
+                const internalData = internalState.value;
+                if (internalData && !internalData.root) {
+                  const root = (internalData.root = client.createRoot(el));
+                  root.render(main(slotRef.value, scopeId, internalData.cmp, props));
+                }
+              });
+            } else {
+              hostRef.value = el;
+            }
           }}
         >
           {SkipRender}

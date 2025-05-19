@@ -1,21 +1,20 @@
-import { getBanner, importPath, nodeTarget, target, watcher } from './util';
-import { build, BuildOptions } from 'esbuild';
-import { BuildConfig, injectGlobalThisPoly, PackageJSON } from './util';
+import { getBanner, importPath, nodeTarget, target } from './util';
+import { build, type BuildOptions } from 'esbuild';
+import { type BuildConfig, type PackageJSON } from './util';
 import { join } from 'node:path';
 import { writePackageJson } from './package-json';
 
-/**
- * Builds @builder.io/testing
- */
+/** Builds @builder.io/testing */
 export async function submoduleTesting(config: BuildConfig) {
   const submodule = 'testing';
 
   const opts: BuildOptions = {
-    entryPoints: [join(config.srcDir, submodule, 'index.ts')],
-    outdir: join(config.distPkgDir, submodule),
+    entryPoints: [join(config.srcQwikDir, submodule, 'index.ts')],
+    outdir: join(config.distQwikPkgDir, submodule),
     sourcemap: config.dev,
     bundle: true,
     target,
+    external: ['@builder.io/qwik/build'],
     platform: 'node',
     // external: [...nodeBuiltIns],
   };
@@ -30,9 +29,9 @@ export async function submoduleTesting(config: BuildConfig) {
       importPath(/^@builder\.io\/qwik\/optimizer$/, '../optimizer.mjs'),
       importPath(/^@builder\.io\/qwik\/server$/, '../server.mjs'),
     ],
-    watch: watcher(config, submodule),
     define: {
       'globalThis.MODULE_EXT': `"mjs"`,
+      'globalThis.RUNNER': `false`,
     },
     target: 'es2020' /* needed for import.meta */,
   });
@@ -42,16 +41,16 @@ export async function submoduleTesting(config: BuildConfig) {
     format: 'cjs',
     outExtension: { '.js': '.cjs' },
     banner: {
-      js: getBanner('@builder.io/qwik/testing', config.distVersion) + injectGlobalThisPoly(),
+      js: getBanner('@builder.io/qwik/testing', config.distVersion),
     },
     plugins: [
       importPath(/^@builder\.io\/qwik$/, '../core.cjs'),
       importPath(/^@builder\.io\/qwik\/optimizer$/, '../optimizer.cjs'),
       importPath(/^@builder\.io\/qwik\/server$/, '../server.cjs'),
     ],
-    watch: watcher(config),
     define: {
       'globalThis.MODULE_EXT': `"cjs"`,
+      'globalThis.RUNNER': `false`,
     },
     platform: 'node',
     target: nodeTarget,
@@ -72,7 +71,8 @@ async function generateTestingPackageJson(config: BuildConfig) {
     types: 'index.d.ts',
     private: true,
     type: 'module',
+    sideEffects: true,
   };
-  const testingDistDir = join(config.distPkgDir, 'testing');
+  const testingDistDir = join(config.distQwikPkgDir, 'testing');
   await writePackageJson(testingDistDir, pkg);
 }

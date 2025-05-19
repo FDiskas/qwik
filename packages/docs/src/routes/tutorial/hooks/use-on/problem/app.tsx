@@ -1,19 +1,19 @@
 import { $, component$, useOn, useStore } from '@builder.io/qwik';
 
-export const App = component$(() => {
+export default component$(() => {
   const store = useStore(
     {
       element: { x: 0, y: 0 },
       window: { x: 0, y: 0 },
       document: { x: 0, y: 0 },
     },
-    { recursive: true }
+    { deep: true }
   );
   useOn(
     'mousemove',
     $((event) => {
-      store.element.x = (event as MouseEvent).x;
-      store.element.y = (event as MouseEvent).y;
+      store.element.x = event.x;
+      store.element.y = event.y;
     })
   );
   return (

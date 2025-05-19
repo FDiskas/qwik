@@ -1,36 +1,36 @@
 import {
   component$,
-  useRef,
+  useSignal,
   noSerialize,
   useContextProvider,
-  useClientEffect$,
+  useTask$,
+  type Signal,
 } from '@builder.io/qwik';
 import { MAX_QUERY_SIZE } from './constants';
 import { SearchContext } from './context';
 import type { DocSearchProps, DocSearchState } from './doc-search';
-import type { FooterTranslations } from './footer';
-import { Footer } from './footer';
 import { handleSearch } from './handleSearch';
 import type { ScreenStateTranslations } from './screen-state';
 import { ScreenState } from './screen-state';
 import type { SearchBoxTranslations } from './search-box';
 import { SearchBox } from './search-box';
-import { createStoredSearches } from './stored-searches';
-import type { DocSearchHit, InternalDocSearchHit, StoredDocSearchHit } from './types';
+import type { DocSearchHit } from './types';
 
-import { identity, noop } from './utils';
+import { identity } from './utils';
 import { clearStalled, setStalled } from './utils/stalledControl';
+import { AIButton } from './result';
+import { isBrowser } from '@builder.io/qwik';
 
 export type ModalTranslations = Partial<{
   searchBox: SearchBoxTranslations;
-  footer: FooterTranslations;
 }> &
   ScreenStateTranslations;
 
 export type DocSearchModalProps = DocSearchProps & {
-  onClose$: () => void;
   translations?: ModalTranslations;
   state: DocSearchState;
+  aiResultOpen?: boolean;
+  isOpen: Signal<boolean>;
 };
 
 export const DocSearchModal = component$(
@@ -39,44 +39,21 @@ export const DocSearchModal = component$(
     apiKey,
     indexName,
     state,
-    onClose$ = noop,
     transformItems$ = identity,
+    aiResultOpen,
     disableUserPersonalization = false,
-    translations = {},
+    isOpen,
   }: DocSearchModalProps) => {
-    const {
-      footer: footerTranslations,
-      searchBox: searchBoxTranslations,
-      ...screenStateTranslations
-    } = translations;
-    const containerRef = useRef();
-    const modalRef = useRef();
-    const formElementRef = useRef();
-    const dropdownRef = useRef();
-    const inputRef = useRef();
-    function saveRecentSearch(item: InternalDocSearchHit) {
-      if (disableUserPersonalization) {
-        return;
-      }
-
-      // We don't store `content` record, but their parent if available.
-      const search = item.type === 'content' ? item.__docsearch_parent : item;
-
-      // We save the recent search only if it's not favorited.
-      if (
-        search &&
-        state.favoriteSearches?.getAll().findIndex((x: any) => x.objectID === search.objectID) ===
-          -1
-      ) {
-        state.recentSearches?.add(search);
-      }
-    }
+    const containerRef = useSignal<Element>();
+    const modalRef = useSignal<Element>();
+    const formElementRef = useSignal<Element>();
+    const dropdownRef = useSignal<Element>();
+    const inputRef = useSignal<Element>();
 
     const onSelectItem = noSerialize(({ item, event }: any) => {
-      saveRecentSearch(item);
       if (event) {
         if (!event.shiftKey && !event.ctrlKey && !event.metaKey) {
-          onClose$.apply(undefined, []);
+          isOpen.value = false;
         }
       }
     }) as any;
@@ -135,65 +112,22 @@ export const DocSearchModal = component$(
     // TODO:
     // useTrapFocus(containerRef as any);
 
-    useClientEffect$(() => {
-      state.favoriteSearches = createStoredSearches<StoredDocSearchHit>({
-        key: `__DOCSEARCH_FAVORITE_SEARCHES__${indexName}`,
-        limit: 10,
-      });
-      state.recentSearches = createStoredSearches<StoredDocSearchHit>({
-        key: `__DOCSEARCH_RECENT_SEARCHES__${indexName}`,
-        // We display 7 recent searches and there's no favorites, but only
-        // 4 when there are favorites.
-        limit: state.favoriteSearches?.getAll().length === 0 ? 7 : 4,
-      });
+    useTask$(() => {
+      if (isBrowser) {
+        document.body.classList.add('DocSearch--active');
 
-      const initialQueryFromSelection =
-        typeof window !== 'undefined'
-          ? window.getSelection()!.toString().slice(0, MAX_QUERY_SIZE)
-          : '';
-      if (initialQueryFromSelection) {
-        state.initialQuery = initialQueryFromSelection;
-      }
-
-      document.body.classList.add('DocSearch--active');
-      const isMobileMediaQuery = window.matchMedia('(max-width: 768px)');
-
-      if (isMobileMediaQuery.matches) {
-        state.snippetLength = 5;
-      }
-
-      return () => {
-        document.body.classList.remove('DocSearch--active');
-
-        // IE11 doesn't support `scrollTo` so we check that the method exists
-        // first.
-        // window.scrollTo?.(0, initialScrollY);
-      };
-    });
-
-    useClientEffect$(({ track }) => {
-      track(state, 'query');
-      if (dropdownRef.current) {
-        dropdownRef.current.scrollTop = 0;
+        return () => {
+          document.body.classList.remove('DocSearch--active');
+          document.body.style.overflow = '';
+        };
       }
     });
 
-    // We don't focus the input when there's an initial query (i.e. Selection
-    // Search) because users rather want to see the results directly, without the
-    // keyboard appearing.
-    // We therefore need to refresh the autocomplete instance to load all the
-    // results, which is usually triggered on focus.
-    useClientEffect$(({ track }) => {
-      const initialQuery = track(state, 'initialQuery');
-      if (initialQuery && initialQuery.length > 0) {
-        onInput?.({
-          target: {
-            value: initialQuery,
-          },
-        } as any);
-        if (inputRef.current) {
-          // @ts-ignore
-          inputRef.current.focus();
+    useTask$(({ track }) => {
+      if (isBrowser) {
+        track(() => state.query);
+        if (dropdownRef.value) {
+          dropdownRef.value.scrollTop = 0;
         }
       }
     });
@@ -201,22 +135,24 @@ export const DocSearchModal = component$(
     // We rely on a CSS property to set the modal height to the full viewport height
     // because all mobile browsers don't compute their height the same way.
     // See https://css-tricks.com/the-trick-to-viewport-units-on-mobile/
-    useClientEffect$(() => {
-      function setFullViewportHeight() {
-        if (modalRef.current) {
-          const vh = window.innerHeight * 0.01;
-          // @ts-ignore
-          modalRef.current.style.setProperty('--docsearch-vh', `${vh}px`);
-        }
+    useTask$(() => {
+      if (isBrowser) {
+        const setFullViewportHeight = () => {
+          if (modalRef.value) {
+            const vh = window.innerHeight * 0.01;
+            // @ts-ignore
+            modalRef.value.style.setProperty('--docsearch-vh', `${vh}px`);
+          }
+        };
+
+        setFullViewportHeight();
+
+        window.addEventListener('resize', setFullViewportHeight);
+
+        return () => {
+          window.removeEventListener('resize', setFullViewportHeight);
+        };
       }
-
-      setFullViewportHeight();
-
-      window.addEventListener('resize', setFullViewportHeight);
-
-      return () => {
-        window.removeEventListener('resize', setFullViewportHeight);
-      };
     });
 
     return (
@@ -231,42 +167,34 @@ export const DocSearchModal = component$(
           'DocSearch-Container',
           state.status === 'stalled' && 'DocSearch-Container--Stalled',
           state.status === 'error' && 'DocSearch-Container--Errored',
-        ]
-          .filter(Boolean)
-          .join(' ')}
+        ]}
         role="button"
         tabIndex={0}
         onMouseDown$={(event) => {
-          if (event.target === containerRef.current) {
-            onClose$.apply(undefined, []);
+          if (event.target === containerRef.value) {
+            isOpen.value = false;
           }
         }}
       >
         <div class="DocSearch-Modal" ref={modalRef}>
           <header class="DocSearch-SearchBar" ref={formElementRef}>
-            <SearchBox
-              state={state}
-              autoFocus={state.initialQuery?.length === 0}
-              inputRef={inputRef as any}
-              translations={searchBoxTranslations}
-              onClose$={() => {
-                onClose$.apply(undefined, []);
-              }}
-            />
+            <SearchBox isOpen={isOpen} state={state} autoFocus={true} inputRef={inputRef as any} />
           </header>
 
           <div class="DocSearch-Dropdown" ref={dropdownRef}>
+            <div class="DocSearch-Dropdown-Container">
+              <section class="DocSearch-Hits">
+                <ul role="listbox" aria-labelledby="docsearch-label" id="docsearch-list">
+                  <AIButton state={state} />
+                </ul>
+              </section>
+            </div>
             <ScreenState
               state={state}
               disableUserPersonalization={disableUserPersonalization}
               inputRef={inputRef as any}
-              translations={screenStateTranslations}
             />
           </div>
-
-          <footer class="DocSearch-Footer">
-            <Footer translations={footerTranslations} />
-          </footer>
         </div>
       </div>
     );

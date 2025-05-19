@@ -5,7 +5,7 @@ interface AppStore {
   countA: number;
   countB: number;
 }
-export const App = component$(() => {
+export default component$(() => {
   const store = useStore<AppStore>({
     countA: 0,
     countB: 0,
@@ -22,12 +22,12 @@ export const App = component$(() => {
   );
 });
 
-export const DisplayA = component$((props: { store: AppStore }) => {
+export const DisplayA = component$<{ store: AppStore }>((props) => {
   console.log('Render: <DisplayA>');
   return <>{props.store.countA}</>;
 });
 
-export const DisplayB = component$((props: { store: AppStore }) => {
+export const DisplayB = component$<{ store: AppStore }>((props) => {
   console.log('Render: <DisplayB>');
   return <>{props.store.countB}</>;
 });

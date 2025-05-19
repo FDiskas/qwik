@@ -1,23 +1,14 @@
-import { build, BuildOptions, Plugin } from 'esbuild';
+import { build, type BuildOptions, type Plugin } from 'esbuild';
 import { join } from 'node:path';
-import {
-  BuildConfig,
-  getBanner,
-  importPath,
-  injectGlobalThisPoly,
-  injectGlobalPoly,
-  nodeTarget,
-  target,
-  watcher,
-} from './util';
+import { type BuildConfig, getBanner, importPath, nodeTarget, target } from './util';
 import { inlineQwikScriptsEsBuild } from './submodule-qwikloader';
 import { readPackageJson } from './package-json';
 
 /**
  * Builds @builder.io/server
  *
- * This is submodule for helping to generate server-side rendered pages,
- * along with providing utilities for prerendering and unit testing.
+ * This is submodule for helping to generate server-side rendered pages, along with providing
+ * utilities for prerendering and unit testing.
  */
 export async function submoduleServer(config: BuildConfig) {
   const submodule = 'server';
@@ -26,22 +17,27 @@ export async function submoduleServer(config: BuildConfig) {
   const qwikDomVersion = await getQwikDomVersion(config);
 
   const opts: BuildOptions = {
-    entryPoints: [join(config.srcDir, submodule, 'index.ts')],
+    entryPoints: [join(config.srcQwikDir, submodule, 'index.ts')],
     entryNames: 'server',
-    outdir: config.distPkgDir,
+    outdir: config.distQwikPkgDir,
     sourcemap: config.dev,
     bundle: true,
+    platform: 'node',
     target,
-    external: [/* no nodejs built-in externals allowed! */ '@builder.io/qwik-dom'],
+    external: [
+      /* no Node.js built-in externals allowed! */ '@builder.io/qwik-dom',
+      '@builder.io/qwik/build',
+      '@builder.io/qwik/preloader',
+      '@qwik-client-manifest',
+    ],
   };
 
   const esm = build({
     ...opts,
     format: 'esm',
-    banner: { js: getBanner('@builder.io/qwik/server', config.distVersion) + injectGlobalPoly() },
+    banner: { js: getBanner('@builder.io/qwik/server', config.distVersion) },
     outExtension: { '.js': '.mjs' },
     plugins: [importPath(/^@builder\.io\/qwik$/, '@builder.io/qwik'), qwikDomPlugin],
-    watch: watcher(config, submodule),
     define: {
       ...(await inlineQwikScriptsEsBuild(config)),
       'globalThis.IS_CJS': 'false',
@@ -53,8 +49,6 @@ export async function submoduleServer(config: BuildConfig) {
 
   const cjsBanner = [
     getBanner('@builder.io/qwik/server', config.distVersion),
-    injectGlobalThisPoly(),
-    injectGlobalPoly(),
     `globalThis.qwikServer = (function (module) {`,
     browserCjsRequireShim,
   ].join('\n');
@@ -70,8 +64,6 @@ export async function submoduleServer(config: BuildConfig) {
     },
     outExtension: { '.js': '.cjs' },
     plugins: [importPath(/^@builder\.io\/qwik$/, '@builder.io/qwik'), qwikDomPlugin],
-    watch: watcher(config),
-    platform: 'node',
     target: nodeTarget,
     define: {
       ...(await inlineQwikScriptsEsBuild(config)),
@@ -79,6 +71,11 @@ export async function submoduleServer(config: BuildConfig) {
       'globalThis.IS_ESM': 'false',
       'globalThis.QWIK_VERSION': JSON.stringify(config.distVersion),
       'globalThis.QWIK_DOM_VERSION': JSON.stringify(qwikDomVersion),
+      // We need to get rid of the import.meta.env values
+      // Vite's base url
+      'import.meta.env.BASE_URL': '"globalThis.BASE_URL||\'/\'"',
+      // Vite's devserver mode
+      'import.meta.env.DEV': 'false',
     },
   });
 
@@ -132,6 +129,15 @@ if (typeof require !== 'function' && typeof location !== 'undefined' && typeof n
         throw new Error('Qwik Core global, "globalThis.qwikCore", must already be loaded for the Qwik Server to be used within a browser.');
       }
       return self.qwikCore;
+    }
+    if (path === '@builder.io/qwik/build') {
+      if (!self.qwikBuild) {
+        throw new Error('Qwik Build global, "globalThis.qwikBuild", must already be loaded for the Qwik Server to be used within a browser.');
+      }
+      return self.qwikBuild;
+    }
+    if (path === '@qwik-client-manifest') {
+      return {};
     }
     throw new Error('Unable to require() path "' + path + '" from a browser environment.');
   };

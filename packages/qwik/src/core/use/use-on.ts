@@ -1,50 +1,18 @@
 import { assertQrl } from '../qrl/qrl-class';
 import type { QRL } from '../qrl/qrl.public';
 import { getContext, HOST_FLAG_NEED_ATTACH_LISTENER } from '../state/context';
-import { Listener, normalizeOnProp } from '../state/listeners';
-import { implicit$FirstArg } from '../util/implicit_dollar';
+import { type Listener, normalizeOnProp } from '../state/listeners';
 import { useInvokeContext } from './use-core';
-import { useSequentialScope } from './use-sequential-scope';
-import { Watch, WatchFlagsIsCleanup } from './use-watch';
+import { type KnownEventNames } from '../render/jsx/types/jsx-qwik-events';
+import type {
+  EventHandler,
+  EventFromName,
+  AllEventKeys,
+} from '../render/jsx/types/jsx-qwik-attributes';
 
-// <docs markdown="../readme.md#useCleanup">
-// !!DO NOT EDIT THIS COMMENT DIRECTLY!!!
-// (edit ../readme.md#useCleanup instead)
-/**
- * It can be used to release resources, abort network requests, stop timers...
- *
- * @alpha
- * @deprecated Use the cleanup() function of `useWatch$()`, `useResource$()` or
- * `useClientEffect$()` instead.
- */
-// </docs>
-export const useCleanupQrl = (unmountFn: QRL<() => void>): void => {
-  const { get, set, i, ctx } = useSequentialScope<boolean>();
-  if (!get) {
-    assertQrl(unmountFn);
-    const el = ctx.$hostElement$;
-    const watch = new Watch(WatchFlagsIsCleanup, i, el, unmountFn, undefined);
-    const elCtx = getContext(el);
-    set(true);
-    if (!elCtx.$watches$) {
-      elCtx.$watches$ = [];
-    }
-    elCtx.$watches$.push(watch);
-  }
-};
-
-// <docs markdown="../readme.md#useCleanup">
-// !!DO NOT EDIT THIS COMMENT DIRECTLY!!!
-// (edit ../readme.md#useCleanup instead)
-/**
- * It can be used to release resources, abort network requests, stop timers...
- *
- * @alpha
- * @deprecated Use the cleanup() function of `useWatch$()`, `useResource$()` or
- * `useClientEffect$()` instead.
- */
-// </docs>
-export const useCleanup$ = /*#__PURE__*/ implicit$FirstArg(useCleanupQrl);
+export type EventQRL<T extends string = AllEventKeys> =
+  | QRL<EventHandler<EventFromName<T>, Element>>
+  | undefined;
 
 // <docs markdown="../readme.md#useOn">
 // !!DO NOT EDIT THIS COMMENT DIRECTLY!!!
@@ -55,13 +23,13 @@ export const useCleanup$ = /*#__PURE__*/ implicit$FirstArg(useCleanupQrl);
  * Used to programmatically add event listeners. Useful from custom `use*` methods, which do not
  * have access to the JSX. Otherwise, it's adding a JSX listener in the `<div>` is a better idea.
  *
+ * @public
  * @see `useOn`, `useOnWindow`, `useOnDocument`.
- *
- * @alpha
  */
 // </docs>
-export const useOn = (event: string | string[], eventQrl: QRL<(ev: Event) => void>) =>
-  _useOn(`on-${event}`, eventQrl);
+export const useOn = <T extends KnownEventNames>(event: T | T[], eventQrl: EventQRL<T>) => {
+  _useOn(createEventName(event, undefined), eventQrl);
+};
 
 // <docs markdown="../readme.md#useOnDocument">
 // !!DO NOT EDIT THIS COMMENT DIRECTLY!!!
@@ -72,6 +40,7 @@ export const useOn = (event: string | string[], eventQrl: QRL<(ev: Event) => voi
  * Used to programmatically add event listeners. Useful from custom `use*` methods, which do not
  * have access to the JSX.
  *
+ * @public
  * @see `useOn`, `useOnWindow`, `useOnDocument`.
  *
  * ```tsx
@@ -89,12 +58,11 @@ export const useOn = (event: string | string[], eventQrl: QRL<(ev: Event) => voi
  *   return <div>Profit!</div>;
  * });
  * ```
- *
- * @alpha
  */
 // </docs>
-export const useOnDocument = (event: string | string[], eventQrl: QRL<(ev: Event) => void>) =>
-  _useOn(`document:on-${event}`, eventQrl);
+export const useOnDocument = <T extends KnownEventNames>(event: T | T[], eventQrl: EventQRL<T>) => {
+  _useOn(createEventName(event, 'document'), eventQrl);
+};
 
 // <docs markdown="../readme.md#useOnWindow">
 // !!DO NOT EDIT THIS COMMENT DIRECTLY!!!
@@ -105,6 +73,7 @@ export const useOnDocument = (event: string | string[], eventQrl: QRL<(ev: Event
  * Used to programmatically add event listeners. Useful from custom `use*` methods, which do not
  * have access to the JSX.
  *
+ * @public
  * @see `useOn`, `useOnWindow`, `useOnDocument`.
  *
  * ```tsx
@@ -123,21 +92,36 @@ export const useOnDocument = (event: string | string[], eventQrl: QRL<(ev: Event
  *   return <div>Profit!</div>;
  * });
  * ```
- *
- * @alpha
  */
 // </docs>
-export const useOnWindow = (event: string | string[], eventQrl: QRL<(ev: Event) => void>) =>
-  _useOn(`window:on-${event}`, eventQrl);
+export const useOnWindow = <T extends KnownEventNames>(event: T | T[], eventQrl: EventQRL<T>) => {
+  _useOn(createEventName(event, 'window'), eventQrl);
+};
 
-const _useOn = (eventName: string | string[], eventQrl: QRL<(ev: Event) => void>) => {
-  const invokeCtx = useInvokeContext();
-  const elCtx = getContext(invokeCtx.$hostElement$);
-  assertQrl(eventQrl);
-  if (typeof eventName === 'string') {
-    elCtx.li.push([normalizeOnProp(eventName), eventQrl]);
-  } else {
-    elCtx.li.push(...eventName.map((name) => [normalizeOnProp(name), eventQrl] as Listener));
+const createEventName = (
+  event: KnownEventNames | KnownEventNames[],
+  eventType: 'window' | 'document' | undefined
+) => {
+  const formattedEventType = eventType !== undefined ? eventType + ':' : '';
+  const res = Array.isArray(event)
+    ? event.map((e) => `${formattedEventType}on-${e}`)
+    : `${formattedEventType}on-${event}`;
+  return res;
+};
+
+const _useOn = (eventName: string | string[], eventQrl: EventQRL) => {
+  if (eventQrl) {
+    const invokeCtx = useInvokeContext();
+    const elCtx = getContext(
+      invokeCtx.$hostElement$,
+      invokeCtx.$renderCtx$.$static$.$containerState$
+    );
+    assertQrl(eventQrl as any);
+    if (typeof eventName === 'string') {
+      elCtx.li.push([normalizeOnProp(eventName), eventQrl] as Listener);
+    } else {
+      elCtx.li.push(...eventName.map((name) => [normalizeOnProp(name), eventQrl] as Listener));
+    }
+    elCtx.$flags$ |= HOST_FLAG_NEED_ATTACH_LISTENER;
   }
-  elCtx.$flags$ |= HOST_FLAG_NEED_ATTACH_LISTENER;
 };

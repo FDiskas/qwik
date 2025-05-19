@@ -1,40 +1,45 @@
-import type { PluginContext, RollupError } from 'rollup';
+import type { Rollup } from 'vite';
 import type { ESLint, Linter } from 'eslint';
 import type { OptimizerSystem } from '../types';
 
 export interface QwikLinter {
-  lint(ctx: PluginContext, code: string, id: string): void;
+  lint(ctx: Rollup.PluginContext, code: string, id: string): void;
 }
 
-export async function createLinter(sys: OptimizerSystem, rootDir: string): Promise<QwikLinter> {
-  const module = await sys.dynamicImport('eslint');
-  const options: ESLint.Options = {
-    cache: true,
-    useEslintrc: false,
-    overrideConfig: {
-      root: true,
-      env: {
-        browser: true,
-        es2021: true,
-        node: true,
-      },
-      extends: ['plugin:qwik/recommended'],
-      parser: '@typescript-eslint/parser',
-      parserOptions: {
-        tsconfigRootDir: rootDir,
-        project: ['./tsconfig.json'],
-        ecmaVersion: 2021,
-        sourceType: 'module',
-        ecmaFeatures: {
-          jsx: true,
+export async function createLinter(
+  sys: OptimizerSystem,
+  rootDir: string,
+  tsconfigFileNames: string[]
+): Promise<QwikLinter> {
+  const module: typeof import('eslint') = await sys.dynamicImport('eslint');
+
+  let eslint = new module.ESLint({ cache: true }) as ESLint;
+  const eslintConfig = await eslint.calculateConfigForFile('no-real-file.tsx');
+  const invalidEslintConfig = eslintConfig.parser === null;
+
+  if (invalidEslintConfig) {
+    const options: ESLint.Options = {
+      cache: true,
+
+      overrideConfig: {
+        languageOptions: {
+          parserOptions: {
+            tsconfigRootDir: rootDir,
+            project: tsconfigFileNames,
+            ecmaVersion: 2021,
+            sourceType: 'module',
+            ecmaFeatures: {
+              jsx: true,
+            },
+          },
         },
       },
-    },
-  };
-  const eslint = new module.ESLint(options) as ESLint;
+    };
+    eslint = new module.ESLint(options) as ESLint;
+  }
 
   return {
-    async lint(ctx: PluginContext, code: string, id: string) {
+    async lint(ctx: Rollup.PluginContext, code: string, id: string) {
       try {
         const filePath = parseRequest(id);
         if (await eslint.isPathIgnored(filePath)) {
@@ -46,6 +51,9 @@ export async function createLinter(sys: OptimizerSystem, rootDir: string): Promi
 
         report.forEach((file) => {
           for (const message of file.messages) {
+            if (message.ruleId != null && !message.ruleId.startsWith('qwik/')) {
+              continue;
+            }
             const err = createRollupError(file.filePath, message);
             ctx.warn(err);
           }
@@ -62,7 +70,7 @@ function parseRequest(id: string) {
 }
 
 function createRollupError(id: string, reportMessage: Linter.LintMessage) {
-  const err: RollupError = Object.assign(new Error(reportMessage.message), {
+  const err: Rollup.RollupError = Object.assign(new Error(reportMessage.message), {
     id,
     plugin: 'vite-plugin-eslint',
     loc: {

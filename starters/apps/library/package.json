@@ -1,11 +1,10 @@
 {
   "name": "qwik-library-name",
-  "description": "Create a reusable Qwik component library",
+  "description": "Create a Qwik library",
   "version": "0.0.1",
   "private": false,
   "main": "./lib/index.qwik.mjs",
   "qwik": "./lib/index.qwik.mjs",
-  "module": "./lib/index.qwik.mjs",
   "types": "./lib-types/index.d.ts",
   "type": "module",
   "exports": {
@@ -27,30 +26,31 @@
     "dev.debug": "node --inspect-brk ./node_modules/vite/bin/vite.js --mode ssr --force",
     "fmt": "prettier --write .",
     "fmt.check": "prettier --check .",
-    "lint": "eslint src/**/*.ts*",
+    "lint": "eslint \"src/**/*.ts*\"",
+    "test": "echo \"No test specified\" && exit 0",
     "start": "vite --open --mode ssr",
     "qwik": "qwik",
     "release": "np"
   },
   "devDependencies": {
     "@builder.io/qwik": "latest",
-    "@types/eslint": "8.4.1",
+    "@eslint/js": "latest",
     "@types/node": "latest",
-    "@typescript-eslint/eslint-plugin": "5.14.0",
-    "@typescript-eslint/parser": "5.14.0",
+    "typescript-eslint": "latest",
+    "eslint": "latest",
     "eslint-plugin-qwik": "latest",
-    "eslint": "8.12.0",
-    "node-fetch": "latest",
-    "np": "7.6.1",
+    "np": "^8.0.4",
     "prettier": "latest",
     "typescript": "latest",
-    "vite": "latest"
+    "undici": "latest",
+    "vite": "^4.5.2",
+    "vite-tsconfig-paths": "^4.2.1"
   },
   "__qwik__": {
-    "displayName": "Component library",
+    "displayName": "Library (Qwik)",
     "priority": -1,
     "docs": [
-      "https://qwik.builder.io/docs/overview/"
+      "https://qwik.dev/docs/getting-started/"
     ]
   }
 }

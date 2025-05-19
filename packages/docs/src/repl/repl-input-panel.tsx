@@ -1,4 +1,4 @@
-import type { PropFunction } from '@builder.io/qwik';
+import type { QRL } from '@builder.io/qwik';
 import { Editor } from './editor';
 import { ReplCommands } from './repl-commands';
 import { ReplTabButton } from './repl-tab-button';
@@ -15,11 +15,12 @@ export const ReplInputPanel = ({
   enableInputDelete,
 }: ReplInputPanelProps) => {
   return (
-    <div class="repl-panel repl-input-panel">
+    <div class="repl-panel repl-input-panel" translate="no">
       <ReplTabButtons>
         {input.files.map((f) =>
           f.hidden ? null : (
             <ReplTabButton
+              key={f.path}
               text={formatFilePath(f.path)}
               isActive={store.selectedInputPath === f.path}
               onClick$={async () => {
@@ -64,8 +65,8 @@ const formatFilePath = (path: string) => {
 interface ReplInputPanelProps {
   input: ReplAppInput;
   store: ReplStore;
-  onInputChange$: PropFunction<(path: string, code: string) => void>;
-  onInputDelete$: PropFunction<(path: string) => void>;
+  onInputChange$: QRL<(path: string, code: string) => void>;
+  onInputDelete$: QRL<(path: string) => void>;
   enableDownload?: boolean;
   enableCopyToPlayground?: boolean;
   enableInputDelete?: boolean;

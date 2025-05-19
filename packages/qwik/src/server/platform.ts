@@ -1,41 +1,60 @@
 import type { SerializeDocumentOptions } from './types';
-import type { CorePlatform } from '@builder.io/qwik';
 import { setPlatform } from '@builder.io/qwik';
-import type { ResolvedManifest } from './prefetch-strategy';
+import type { ResolvedManifest } from '@builder.io/qwik/optimizer';
+import type { CorePlatformServer } from '../core/platform/types';
 
 declare const require: (module: string) => Record<string, any>;
 
-function createPlatform(
+// Make sure this value is same as value in `qrl-class.ts`
+const SYNC_QRL = '<sync>';
+
+export function createPlatform(
   opts: SerializeDocumentOptions,
   resolvedManifest: ResolvedManifest | undefined
 ) {
   const mapper = resolvedManifest?.mapper;
   const mapperFn = opts.symbolMapper
     ? opts.symbolMapper
-    : (symbolName: string) => {
+    : (symbolName: string, _chunk: any, parent?: string): readonly [string, string] | undefined => {
         if (mapper) {
           const hash = getSymbolHash(symbolName);
           const result = mapper[hash];
           if (!result) {
-            console.error('Cannot resolve symbol', symbolName, 'in', mapper);
+            if (hash === SYNC_QRL) {
+              return [hash, ''] as const;
+            }
+            const isRegistered = (globalThis as any).__qwik_reg_symbols?.has(hash);
+            if (isRegistered) {
+              return [symbolName, '_'] as const;
+            }
+            if (parent) {
+              // In dev mode, SSR may need to refer to a symbol that wasn't built yet on the client
+              return [symbolName, `${parent}?qrl=${symbolName}`] as const;
+            }
+            console.error('Cannot resolve symbol', symbolName, 'in', mapper, parent);
           }
           return result;
         }
       };
 
-  const serverPlatform: CorePlatform = {
+  const serverPlatform: CorePlatformServer = {
     isServer: true,
     async importSymbol(_containerEl, url, symbolName) {
+      const hash = getSymbolHash(symbolName);
+      const regSym = (globalThis as any).__qwik_reg_symbols?.get(hash);
+      if (regSym) {
+        return regSym;
+      }
+
       let modulePath = String(url);
       if (!modulePath.endsWith('.js')) {
         modulePath += '.js';
       }
-      const module = require(modulePath); // eslint-disable-line  @typescript-eslint/no-var-requires
+      const module = require(modulePath);
       if (!(symbolName in module)) {
         throw new Error(`Q-ERROR: missing symbol '${symbolName}' in module '${modulePath}'.`);
       }
-      const symbol = module[symbolName];
-      return symbol;
+      return module[symbolName];
     },
     raf: () => {
       console.error('server can not rerender');
@@ -50,17 +69,14 @@ function createPlatform(
         });
       });
     },
-    chunkForSymbol(symbolName: string) {
-      return mapperFn(symbolName, mapper);
+    chunkForSymbol(symbolName: string, _chunk, parent) {
+      return mapperFn(symbolName, mapper, parent);
     },
   };
   return serverPlatform;
 }
 
-/**
- * Applies NodeJS specific platform APIs to the passed in document instance.
- *
- */
+/** Applies NodeJS specific platform APIs to the passed in document instance. */
 export async function setServerPlatform(
   opts: SerializeDocumentOptions,
   manifest: ResolvedManifest | undefined

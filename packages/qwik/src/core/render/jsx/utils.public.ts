@@ -1,54 +1,19 @@
-import { jsx } from '../jsx/jsx-runtime';
+import { jsx, RenderOnce } from '../jsx/jsx-runtime';
 import type { StreamWriter } from '../ssr/render-ssr';
 import type { FunctionComponent, JSXNode } from './types/jsx-node';
 import type { JSXChildren } from './types/jsx-qwik-attributes';
 
-export const QOnce = 'qonce';
-
-/**
- * @alpha
- */
+/** @public */
 export const SkipRender: JSXNode = Symbol('skip render') as any;
 
-/**
- * @alpha
- */
-export const RenderOnce: FunctionComponent<{ children?: any }> = (props: any, key) => {
-  return jsx(
-    Virtual,
-    {
-      ...props,
-      [QOnce]: '',
-    },
-    key
-  );
-};
-
-/**
- * @alpha
- */
-export const Fragment: FunctionComponent<{}> = ((props: any) => props.children) as any;
-
-/**
- * @alpha
- */
+/** @public */
 export const SSRRaw: FunctionComponent<{ data: string }> = (() => null) as any;
 
-/**
- * @alpha
- */
+/** @public */
 export const SSRComment: FunctionComponent<{ data: string }> = (props) =>
   jsx(SSRRaw, { data: `<!--${props.data}-->` }, null) as any;
 
-/**
- * @alpha
- */
-export const Virtual: FunctionComponent<Record<string, any>> = ((props: any) =>
-  props.children) as any;
-
-/**
- * @alpha
- */
+/** @public */
 export const SSRStreamBlock: FunctionComponent<{ children?: any }> = (props) => {
   return [
     jsx(SSRComment, { data: 'qkssr-pu' }),
@@ -57,20 +22,27 @@ export const SSRStreamBlock: FunctionComponent<{ children?: any }> = (props) => 
   ] as any;
 };
 
-/**
- * @alpha
- */
-export interface StreamProps {
+/** @public */
+export type SSRStreamProps = {
   children:
     | AsyncGenerator<JSXChildren, void, any>
     | ((stream: StreamWriter) => Promise<void>)
     | (() => AsyncGenerator<JSXChildren, void, any>);
-}
+};
 
-/**
- * @alpha
- */
-export const SSRStream: FunctionComponent<StreamProps> = (props, key) =>
+/** @public */
+export const SSRStream: FunctionComponent<SSRStreamProps> = (props, key) =>
   jsx(RenderOnce, { children: jsx(InternalSSRStream, props) }, key);
 
-export const InternalSSRStream: FunctionComponent<StreamProps> = () => null;
+/** @public */
+export type SSRHintProps = {
+  dynamic?: boolean;
+};
+
+/**
+ * @deprecated - It has no effect
+ * @public
+ */
+export const SSRHint: FunctionComponent<SSRHintProps> = (() => null) as any;
+
+export const InternalSSRStream: FunctionComponent<SSRStreamProps> = () => null;

@@ -7,12 +7,14 @@ export interface CreateAppOptions {
 
 export interface CreateAppResult extends CreateAppOptions {
   docs: string[];
+  pkgManager: string;
 }
 
 export interface UpdateAppOptions {
   rootDir: string;
   integration: string;
   installDeps?: boolean;
+  projectDir?: string;
 }
 
 export interface UpdateAppResult {
@@ -29,6 +31,7 @@ export interface FsUpdates {
     type: 'create' | 'overwrite' | 'modify';
   }[];
   installedDeps: { [dep: string]: string };
+  installedScripts: string[];
 }
 
 export interface IntegrationData {
@@ -37,12 +40,15 @@ export interface IntegrationData {
   name: string;
   pkgJson: IntegrationPackageJson;
   dir: string;
+  target?: string;
   priority: number;
   docs: string[];
   viteConfig?: ViteConfigUpdates;
+  // Files and folders that should be copied to root ignoring `projectDir`
+  alwaysInRoot?: string[];
 }
 
-export type IntegrationType = 'app' | 'feature' | 'adaptor';
+export type IntegrationType = 'app' | 'feature' | 'adapter';
 
 export interface Feature {
   id: string;
@@ -64,6 +70,8 @@ export interface IntegrationPackageJson {
   scripts?: { [k: string]: string };
   dependencies?: { [k: string]: string };
   devDependencies?: { [k: string]: string };
+  peerDependencies?: { [k: string]: string };
+  optionalDependencies?: { [k: string]: string };
   engines?: { node: string };
   private?: boolean;
   files?: string[];
@@ -71,15 +79,20 @@ export interface IntegrationPackageJson {
   exports?: any;
   module?: string;
   qwik?: string;
+  qwikTemplates?: string[];
   types?: string;
   type?: string;
-  __qwik__?: {
-    displayName?: string;
-    nextSteps?: NextSteps;
-    docs?: string[];
-    priority: number;
-    viteConfig?: ViteConfigUpdates;
-  };
+  __qwik__?: QwikIntegrationConfig;
+}
+
+export interface QwikIntegrationConfig {
+  displayName?: string;
+  nextSteps?: NextSteps;
+  docs?: string[];
+  priority: number;
+  postInstall?: string;
+  viteConfig?: ViteConfigUpdates;
+  alwaysInRoot?: string[];
 }
 
 export interface EnsureImport {
@@ -92,5 +105,19 @@ export interface ViteConfigUpdates {
   imports?: EnsureImport[];
   viteConfig?: { [key: string]: string };
   vitePlugins?: string[];
+  vitePluginsPrepend?: string[];
   qwikViteConfig?: { [key: string]: string };
+}
+
+export interface Template {
+  absolute: string;
+  relative: string;
+}
+
+export interface TemplateSet {
+  id: string;
+  component: Template[];
+  route: Template[];
+  markdown: Template[];
+  mdx: Template[];
 }

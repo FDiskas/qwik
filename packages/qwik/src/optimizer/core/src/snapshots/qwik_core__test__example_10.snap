@@ -1,6 +1,8 @@
 ---
 source: packages/qwik/src/optimizer/core/src/test.rs
+assertion_line: 268
 expression: output
+snapshot_kind: text
 ---
 ==INPUT==
 
@@ -25,13 +27,13 @@ const Header = $((decl1, {decl2}, [decl3]) => {
     )
 });
 
-============================= header_wlr3xni6u38.tsx (ENTRY POINT)==
+============================= project/test.tsx_Header_WlR3xnI6u38.tsx (ENTRY POINT)==
 
-export const Header_WlR3xnI6u38 = (decl1, { decl2  }, [decl3])=>{
-    const hola = ident1.no;
+export const Header_WlR3xnI6u38 = (decl1, { decl2 }, [decl3])=>{
+    ident1.no;
     ident2;
-    const a = ident1 + ident3;
-    const b = ident1 + ident3;
+    ident1, ident3;
+    ident1, ident3;
     ident4(ident5, [
         ident6
     ], {
@@ -50,15 +52,16 @@ export const Header_WlR3xnI6u38 = (decl1, { decl2  }, [decl3])=>{
 export { _hW } from "@builder.io/qwik";
 
 
-Some("{\"version\":3,\"sources\":[\"/user/qwik/src/project/test.tsx\"],\"names\":[],\"mappings\":\"kCAEiB,CAAC,KAAK,EAAE,EAAC,KAAK,CAAA,EAAC,EAAE,CAAC,KAAK,CAAC,GAAK;IAE1C,MAAM,IAAI,GAAG,MAAM,CAAC,EAAE,AAAC;IACvB,MAAM,CAAC;IACP,MAAM,CAAC,GAAG,MAAM,GAAG,MAAM,AAAC;IAC1B,MAAM,CAAC,GAAG,MAAM,GAAG,MAAM,AAAC;IAC1B,MAAM,CAAC,MAAM,EAAE;QAAC,MAAM;KAAC,EAAE;QAAC,MAAM;KAAC,EAAE;QAAC,GAAG,EAAE,MAAM;KAAC,CAAC,CAAC;IAClD,MAAM,IAAI;QACN,IAAI,GAAG,MAAM,CAAC;QACd,MAAM,GAAG;YACL,OAAO,OAAO,CAAC;QACnB;KACH;IAED,QACK,GAAG,CAAC,OAAO,EAAE,CAAC,OAAO,GAAK,OAAO,GAAG,OAAO,EAAE,QAAQ,EAAE,KAAK,IAChE;AACL,CAAC\"}")
+Some("{\"version\":3,\"sources\":[\"/user/qwik/src/project/test.tsx\"],\"names\":[],\"mappings\":\"kCAEiB,CAAC,OAAO,EAAC,KAAK,EAAC,EAAE,CAAC,MAAM;IAExB,OAAO,EAAE;IACtB;IACU,QAAS;IACT,QAAS;IACnB,OAAO,QAAQ;QAAC;KAAO,EAAE;QAAC;IAAM,GAAG;QAAC,KAAK;IAAM;IAC/C,MAAM;QACF,OAAO,OAAO;QACd,SAAS;YACL,OAAO;QACX;IACJ;IAEA,QACK,IAAI,SAAS,CAAC,UAAY,UAAU,SAAS,UAAU;AAEhE\"}")
 /*
 {
   "origin": "project/test.tsx",
   "name": "Header_WlR3xnI6u38",
   "entry": null,
-  "displayName": "Header",
+  "displayName": "test.tsx_Header",
   "hash": "WlR3xnI6u38",
-  "canonicalFilename": "header_wlr3xni6u38",
+  "canonicalFilename": "test.tsx_Header_WlR3xnI6u38",
+  "path": "project",
   "extension": "tsx",
   "parent": null,
   "ctxKind": "function",
@@ -73,10 +76,10 @@ Some("{\"version\":3,\"sources\":[\"/user/qwik/src/project/test.tsx\"],\"names\"
 ============================= project/test.tsx ==
 
 import { qrl } from "@builder.io/qwik";
-qrl(()=>import("../header_wlr3xni6u38"), "Header_WlR3xnI6u38");
+/*#__PURE__*/ qrl(()=>import("./test.tsx_Header_WlR3xnI6u38"), "Header_WlR3xnI6u38");
 
 
-Some("{\"version\":3,\"sources\":[\"/user/qwik/src/project/test.tsx\"],\"names\":[],\"mappings\":\"AACA;+DAkBG\"}")
+Some("{\"version\":3,\"sources\":[],\"names\":[],\"mappings\":\"\"}")
 == DIAGNOSTICS ==
 
 []

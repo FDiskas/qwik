@@ -1,22 +1,24 @@
 import { component$ } from '@builder.io/qwik';
 
-export const App = component$(() => {
+export default component$(() => {
   return (
-    <div>
-      <span>
-        GitHub organization:
-        <input value="BuilderIO" />
-      </span>
-      <div>
+    <main>
+      <p>
+        <label>
+          GitHub organization:
+          <input value="QwikDev" />
+        </label>
+      </p>
+      <section>
         <ul>
           <li>
-            <a href="https://github.com/BuilderIO/qwik">Qwik</a>
+            <a href="https://github.com/QwikDev/qwik">Qwik</a>
           </li>
           <li>
             <a href="https://github.com/BuilderIO/partytown">Partytown</a>
           </li>
         </ul>
-      </div>
-    </div>
+      </section>
+    </main>
   );
 });

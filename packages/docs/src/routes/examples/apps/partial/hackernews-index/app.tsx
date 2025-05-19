@@ -1,20 +1,23 @@
-import { component$, useServerMount$, useStore, useStyles$ } from '@builder.io/qwik';
-import HackerNewsCSS from './hacker-news.css';
+import { component$, useTask$, useStore, useStyles$ } from '@builder.io/qwik';
+import { isServer } from '@builder.io/qwik';
+import HackerNewsCSS from './hacker-news.css?inline';
 
 export const HackerNews = component$(() => {
   useStyles$(HackerNewsCSS);
   const store = useStore({ data: null });
 
-  useServerMount$(async () => {
-    const response = await fetch('https://node-hnapi.herokuapp.com/news?page=0');
-    store.data = await response.json();
+  useTask$(async () => {
+    if (isServer) {
+      const response = await fetch('https://node-hnapi.herokuapp.com/news?page=0');
+      store.data = await response.json();
+    }
   });
 
   return (
-    <>
+    <div class="hacker-news">
       <Nav />
       <Stories data={store.data} />
-    </>
+    </div>
   );
 });
 
@@ -38,12 +41,7 @@ export const Nav = component$(() => {
           <a href="/?type=job">
             <strong>Jobs</strong>
           </a>
-          <a
-            class="github"
-            href="http://github.com/builderio/qwik"
-            target="_blank"
-            rel="noreferrer"
-          >
+          <a class="github" href="http://github.com/QwikDev/qwik" target="_blank" rel="noreferrer">
             Built with Qwik
           </a>
         </nav>
@@ -52,13 +50,13 @@ export const Nav = component$(() => {
   );
 });
 
-export const Stories = component$((props: { data: any }) => {
+export const Stories = component$<{ data: any }>((props) => {
   const page = 1;
   const type = 'list';
   const stories = props.data;
   return (
-    <div class="news-view">
-      <div class="news-list-nav">
+    <main class="news-view">
+      <section class="news-list-nav">
         {page > 1 ? (
           <a class="page-link" href={`/?type=${type}&page=${page - 1}`} aria-label="Previous Page">
             {'<'} prev
@@ -78,8 +76,8 @@ export const Stories = component$((props: { data: any }) => {
             more {'>'}
           </span>
         )}
-      </div>
-      <main class="news-list">
+      </section>
+      <article class="news-list">
         {stories && (
           <ul>
             {stories.map((story: IStory) => (
@@ -87,12 +85,12 @@ export const Stories = component$((props: { data: any }) => {
             ))}
           </ul>
         )}
-      </main>
-    </div>
+      </article>
+    </main>
   );
 });
 
-export const StoryPreview = component$((props: { story: IStory }) => {
+export const StoryPreview = component$<{ story: IStory }>((props) => {
   return (
     <li class="news-item">
       <span class="score">{props.story.points}</span>

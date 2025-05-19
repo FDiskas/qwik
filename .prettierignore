@@ -1,29 +1,46 @@
-**/api.md
+**/**.api.md
 **/*.log
 **/.DS_Store
 *.
-.vscode/settings.json
-.history
-.yarn
-.yarnrc.yml
-.mf
+pnpm-lock.yaml
+.*
+!.eslintrc.cjs
+!.prettierignore
+!.prettierrc.json
+
+# Build output
 dist
 dist-dev
 lib
-etc
-external
-node_modules
 target
-output
-rollup.config.js
-build
-.cache
-.vscode
-.rollup.cache
-tsconfig.tsbuildinfo
-packages/docs/src/routes/**/*.mdx
-**/server/**/*.js
-starters/**/*.js
+starters/apps/**/dist
+node_modules
 
-# TODO: Figure out why this doesn't pass in CI
-packages/qwik/src/core/props/props.ts 
+tsconfig.tsbuildinfo
+
+# REPL files
+packages/docs/public/repl/repl-sw.js*
+
+# build output
+packages/*/lib
+packages/*/dist
+packages/*/server
+
+# API output files
+packages/docs/src/routes/api
+
+# Prettier doesn't handle mdx files well
+packages/docs/**/*.mdx
+
+packages/insights/drizzle
+packages/insights/.netlify
+packages/insights/scripts
+packages/insights/**/*.gen.d.ts
+packages/qwik-labs/lib-types
+packages/qwik-labs/vite
+
+# insights cache files
+**/q-insights.json
+
+# Exclude builder js files from formatting - delete after migration
+packages/docs/public/builder
